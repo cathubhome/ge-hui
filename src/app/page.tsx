@@ -1,9 +1,11 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ScenePlan } from "@/lib/types";
 
 type Step = "input" | "working" | "done" | "error";
+type ModelOpt = { id: string; label: string; hint?: string };
+type FreeSite = { name: string; url: string; note: string };
 
 const SAMPLE_LYRICS = `Head, shoulders, knees and toes, knees and toes
 Head, shoulders, knees and toes, knees and toes
@@ -20,52 +22,82 @@ export default function HomePage() {
   const [error, setError] = useState("");
   const [plan, setPlan] = useState<ScenePlan | null>(null);
   const [imageDataUrl, setImageDataUrl] = useState("");
-  const [mode, setMode] = useState<"canvas" | "openai-image">("canvas");
+  const [mode, setMode] = useState<"canvas" | "cpa-image">("canvas");
   const [planSource, setPlanSource] = useState("");
+
+  const [chatModels, setChatModels] = useState<ModelOpt[]>([]);
+  const [transcribeModels, setTranscribeModels] = useState<ModelOpt[]>([]);
+  const [imageModels, setImageModels] = useState<ModelOpt[]>([]);
+  const [freeSites, setFreeSites] = useState<FreeSite[]>([]);
+  const [chatModel, setChatModel] = useState("gemini-3.8-flash-high");
+  const [chatFallbackModel, setChatFallbackModel] = useState("glm-5.3");
+  const [transcribeModel, setTranscribeModel] = useState("gemini-3.8-flash-high");
+  const [imageModel, setImageModel] = useState("gpt-image-2");
+
+  useEffect(() => {
+    void fetch("/api/models")
+      .then((r) => r.json())
+      .then((data) => {
+        setChatModels(data.chat || []);
+        setTranscribeModels(data.transcribe || []);
+        setImageModels(data.image || []);
+        setFreeSites(data.freeTranscribeSites || []);
+        if (data.defaults?.chat) setChatModel(data.defaults.chat);
+        if (data.defaults?.chatFallback) setChatFallbackModel(data.defaults.chatFallback);
+        if (data.defaults?.transcribe) setTranscribeModel(data.defaults.transcribe);
+        if (data.defaults?.image) setImageModel(data.defaults.image);
+      })
+      .catch(() => {});
+  }, []);
 
   const canGenerate = useMemo(() => lyrics.trim().length > 0, [lyrics]);
 
-  const onFile = useCallback(async (file: File) => {
-    setError("");
-    setStep("working");
-    try {
-      const isPdf =
-        file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf");
-      const isAudio = /audio|mpeg|wav|mp4|m4a|flac|ogg/.test(file.type) ||
-        /\.(mp3|wav|m4a|flac|ogg)$/i.test(file.name);
+  const onFile = useCallback(
+    async (file: File) => {
+      setError("");
+      setStep("working");
+      try {
+        const isPdf =
+          file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf");
+        const isAudio =
+          /audio|mpeg|wav|mp4|m4a|flac|ogg/.test(file.type) ||
+          /\.(mp3|wav|m4a|flac|ogg)$/i.test(file.name);
 
-      if (isPdf) {
-        setStatus("正在从 PDF 抽取歌词…");
-        const fd = new FormData();
-        fd.append("file", file);
-        const res = await fetch("/api/extract-pdf", { method: "POST", body: fd });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error || "PDF 解析失败");
-        setLyrics(data.text);
-        setStatus("PDF 歌词已提取，可点击生成绘本");
-        setStep("input");
-        return;
+        if (isPdf) {
+          setStatus("正在从 PDF 抽取歌词…");
+          const fd = new FormData();
+          fd.append("file", file);
+          const res = await fetch("/api/extract-pdf", { method: "POST", body: fd });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.error || "PDF 解析失败");
+          setLyrics(data.text);
+          setStatus("PDF 歌词已提取，可点击生成绘本");
+          setStep("input");
+          return;
+        }
+
+        if (isAudio) {
+          setStatus(`正在用 CPA（${transcribeModel}）听写音频…`);
+          const fd = new FormData();
+          fd.append("file", file);
+          fd.append("model", transcribeModel);
+          const res = await fetch("/api/transcribe", { method: "POST", body: fd });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.error || "音频听写失败");
+          setLyrics(data.text);
+          setStatus(`听写完成（${data.model || transcribeModel}），请核对后生成绘本`);
+          setStep("input");
+          return;
+        }
+
+        throw new Error("请上传 PDF 或常见音频（mp3 / wav / m4a / flac）");
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "上传处理失败");
+        setStep("error");
       }
-
-      if (isAudio) {
-        setStatus("正在转写音频（需要 OpenAI Whisper）…");
-        const fd = new FormData();
-        fd.append("file", file);
-        const res = await fetch("/api/transcribe", { method: "POST", body: fd });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error || "音频转写失败");
-        setLyrics(data.text);
-        setStatus("音频转写完成，可点击生成绘本");
-        setStep("input");
-        return;
-      }
-
-      throw new Error("请上传 PDF 或常见音频（mp3 / wav / m4a / flac）");
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "上传处理失败");
-      setStep("error");
-    }
-  }, []);
+    },
+    [transcribeModel],
+  );
 
   const generate = useCallback(async () => {
     setError("");
@@ -73,37 +105,38 @@ export default function HomePage() {
     setImageDataUrl("");
     setPlan(null);
     try {
-      setStatus("正在规划童趣分格场景…");
+      setStatus(`正在规划场景（${chatModel} → 备选 ${chatFallbackModel}）…`);
       const planRes = await fetch("/api/plan-scene", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ lyrics }),
+        body: JSON.stringify({ lyrics, chatModel, chatFallbackModel }),
       });
       const planData = await planRes.json();
       if (!planRes.ok) throw new Error(planData.error || "场景规划失败");
       setPlan(planData.plan);
       setPlanSource(planData.source);
+      if (planData.warning) setStatus(planData.warning);
 
       setStatus(
-        mode === "openai-image"
-          ? "正在调用大模型出图…"
+        mode === "cpa-image"
+          ? `正在调用 CPA 出图（${imageModel}）…`
           : "正在渲染童趣绘本页（本地矢量）…",
       );
       const imgRes = await fetch("/api/generate-image", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ plan: planData.plan, mode }),
+        body: JSON.stringify({ plan: planData.plan, mode, imageModel }),
       });
       const imgData = await imgRes.json();
       if (!imgRes.ok) throw new Error(imgData.error || "出图失败");
       setImageDataUrl(imgData.imageDataUrl);
-      setStatus("完成");
+      setStatus(imgData.warning || "完成");
       setStep("done");
     } catch (e) {
       setError(e instanceof Error ? e.message : "生成失败");
       setStep("error");
     }
-  }, [lyrics, mode]);
+  }, [lyrics, mode, chatModel, chatFallbackModel, imageModel]);
 
   return (
     <main className="mx-auto flex min-h-screen max-w-6xl flex-col gap-8 px-4 py-10 md:px-8">
@@ -112,8 +145,8 @@ export default function HomePage() {
           <p className="text-sm font-semibold tracking-wide text-[#ff6b2c]">GE-HUI</p>
           <h1 className="mt-1 text-3xl font-black tracking-tight md:text-4xl">歌绘</h1>
           <p className="mt-2 max-w-2xl text-base text-neutral-700">
-            上传歌曲音频或 PDF 歌词，生成一页童趣分格绘本图。默认本地矢量渲染即可演示；配置
-            OpenAI 后可启用 Whisper 转写与 AI 出图。
+            上传歌曲音频或 PDF 歌词，生成一页童趣分格绘本图。默认本地矢量出图；配置 CPA
+            后可自选模型做听写、场景规划与 AI 出图。
           </p>
         </div>
         <a
@@ -125,6 +158,118 @@ export default function HomePage() {
           查看风格参考图
         </a>
       </header>
+
+      <section className="rounded-3xl border border-black/5 bg-white/80 p-5 shadow-sm backdrop-blur">
+        <h2 className="text-lg font-bold">模型选择（CPA）</h2>
+        <p className="mt-1 text-sm text-neutral-600">
+          默认：Chat / 听写用 gemini-3.8-flash-high，Chat 失败回退 glm-5.3；出图可选 gpt-image-2。
+        </p>
+        <div className="mt-4 grid gap-3 md:grid-cols-2 lg:grid-cols-4">
+          <label className="text-sm">
+            <span className="font-medium">场景规划</span>
+            <select
+              value={chatModel}
+              onChange={(e) => setChatModel(e.target.value)}
+              className="mt-1 w-full rounded-xl border border-neutral-200 bg-white px-3 py-2"
+            >
+              {(chatModels.length ? chatModels : [{ id: chatModel, label: chatModel }]).map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.label}{m.hint ? `（${m.hint}）` : ""}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="text-sm">
+            <span className="font-medium">规划备选</span>
+            <select
+              value={chatFallbackModel}
+              onChange={(e) => setChatFallbackModel(e.target.value)}
+              className="mt-1 w-full rounded-xl border border-neutral-200 bg-white px-3 py-2"
+            >
+              {(chatModels.length ? chatModels : [{ id: chatFallbackModel, label: chatFallbackModel }]).map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.label}{m.hint ? `（${m.hint}）` : ""}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="text-sm">
+            <span className="font-medium">音频听写</span>
+            <select
+              value={transcribeModel}
+              onChange={(e) => setTranscribeModel(e.target.value)}
+              className="mt-1 w-full rounded-xl border border-neutral-200 bg-white px-3 py-2"
+            >
+              {(transcribeModels.length ? transcribeModels : [{ id: transcribeModel, label: transcribeModel }]).map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.label}{m.hint ? `（${m.hint}）` : ""}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="text-sm">
+            <span className="font-medium">AI 出图</span>
+            <select
+              value={imageModel}
+              onChange={(e) => setImageModel(e.target.value)}
+              className="mt-1 w-full rounded-xl border border-neutral-200 bg-white px-3 py-2"
+            >
+              {(imageModels.length ? imageModels : [{ id: imageModel, label: imageModel }]).map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.label}{m.hint ? `（${m.hint}）` : ""}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+      </section>
+
+      <section className="rounded-3xl border border-amber-200/80 bg-amber-50/80 p-5 shadow-sm">
+        <h2 className="text-lg font-bold text-amber-950">免费在线音频转写（外链提示）</h2>
+        <p className="mt-1 text-sm text-amber-900/80">
+          本服务不内嵌 Whisper。若不想用 CPA 听写，可到下列<strong>浏览器本地</strong>网页自行转写，再把文字粘贴回来。
+          音频一般不出本机；首次可能需下载模型，速度看你电脑配置。站点策略可能变化，请以页面说明为准。
+        </p>
+        <ul className="mt-3 space-y-2 text-sm">
+          {(freeSites.length
+            ? freeSites
+            : [
+                {
+                  name: "SoundTools Speech to Text",
+                  url: "https://soundtools.io/speech-to-text/",
+                  note: "浏览器本地 Whisper，免注册",
+                },
+                {
+                  name: "Zalt Speech to Text",
+                  url: "https://zalt.me/tools/speech-to-text",
+                  note: "浏览器本地 Whisper，免注册",
+                },
+                {
+                  name: "Whisper Web",
+                  url: "https://whisperweb.dev/whisper-transcription",
+                  note: "浏览器本地，免 API Key",
+                },
+                {
+                  name: "EarScribe Whisper Online",
+                  url: "https://earscribe.app/whisper-online",
+                  note: "浏览器本地，可选模型大小",
+                },
+              ]
+          ).map((s) => (
+            <li key={s.url} className="rounded-xl bg-white/70 px-3 py-2">
+              <a
+                href={s.url}
+                target="_blank"
+                rel="noreferrer"
+                className="font-semibold text-[#c2410c] underline-offset-2 hover:underline"
+              >
+                {s.name}
+              </a>
+              <span className="text-neutral-600"> — {s.note}</span>
+            </li>
+          ))}
+        </ul>
+      </section>
 
       <section className="grid gap-6 lg:grid-cols-2">
         <div className="rounded-3xl border border-black/5 bg-white/80 p-5 shadow-sm backdrop-blur">
@@ -149,7 +294,7 @@ export default function HomePage() {
             />
             <span className="text-sm font-medium">拖拽或点击上传音频 / PDF</span>
             <span className="mt-1 text-xs text-neutral-500">
-              音频转写需要 OPENAI_API_KEY；PDF 与粘贴歌词可离线演示
+              音频听写走 CPA Gemini 多模态；也可先用上方免费网站转写再粘贴
             </span>
           </label>
 
@@ -168,11 +313,11 @@ export default function HomePage() {
               <span className="font-medium">出图方式</span>
               <select
                 value={mode}
-                onChange={(e) => setMode(e.target.value as "canvas" | "openai-image")}
+                onChange={(e) => setMode(e.target.value as "canvas" | "cpa-image")}
                 className="rounded-xl border border-neutral-200 bg-white px-3 py-2 text-sm"
               >
-                <option value="canvas">本地矢量绘本页（推荐演示）</option>
-                <option value="openai-image">OpenAI 图像模型</option>
+                <option value="canvas">本地矢量绘本页（推荐）</option>
+                <option value="cpa-image">CPA AI 出图</option>
               </select>
             </label>
             <button
@@ -185,13 +330,9 @@ export default function HomePage() {
             </button>
           </div>
 
-          {status && (
-            <p className="mt-3 text-sm text-neutral-600">状态：{status}</p>
-          )}
+          {status && <p className="mt-3 text-sm text-neutral-600">状态：{status}</p>}
           {error && (
-            <p className="mt-2 rounded-xl bg-red-50 px-3 py-2 text-sm text-red-700">
-              {error}
-            </p>
+            <p className="mt-2 rounded-xl bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>
           )}
         </div>
 
@@ -220,7 +361,12 @@ export default function HomePage() {
                 </a>
                 {planSource && (
                   <span className="self-center text-xs text-neutral-500">
-                    场景规划：{planSource === "openai" ? "OpenAI Chat" : "本地规则"}
+                    场景规划：
+                    {planSource === "cpa"
+                      ? "CPA Chat"
+                      : planSource === "local-fallback"
+                        ? "本地兜底"
+                        : "本地规则"}
                   </span>
                 )}
               </div>
@@ -239,7 +385,7 @@ export default function HomePage() {
       </section>
 
       <footer className="pb-8 text-xs leading-relaxed text-neutral-500">
-        仅供学习与产品演示。请确保你对上传的音频/歌词拥有相应权利。参考风格为儿童教育绘本分格页，正式商用请自行替换角色与素材授权。
+        仅供学习与产品演示。请确保你对上传的音频/歌词拥有相应权利。免费转写外链与本产品无隶属关系，使用前请阅读对方条款。
       </footer>
     </main>
   );

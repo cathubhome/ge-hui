@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getOpenAIKey } from "@/lib/openai";
+import { cpaFetch, getCpaApiKey, imageModel as defaultImageModel } from "@/lib/cpa";
 import { buildPictureBookSvg, svgToDataUrl } from "@/lib/render-picturebook";
 import type { ScenePlan } from "@/lib/types";
 
@@ -9,25 +9,37 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     const plan = body.plan as ScenePlan;
-    const mode = (body.mode as string) || "canvas";
+    const mode = (body.mode as string) || process.env.DEFAULT_IMAGE_MODE || "canvas";
+    const selectedImageModel = String(body.imageModel || "").trim() || defaultImageModel();
 
     if (!plan?.panels?.length) {
       return NextResponse.json({ error: "缺少场景规划 plan" }, { status: 400 });
     }
 
-    if (mode === "openai-image") {
-      const key = getOpenAIKey();
-      if (!key) {
+    if (mode === "openai-image" || mode === "cpa-image") {
+      if (!getCpaApiKey()) {
         return NextResponse.json(
-          { error: "openai-image 模式需要 OPENAI_API_KEY" },
+          { error: "AI 出图需要 CPA_API_KEY；或改用本地矢量绘本页" },
           { status: 400 },
         );
       }
-      const imageBase64 = await generateWithOpenAI(plan, key);
-      return NextResponse.json({
-        imageDataUrl: `data:image/png;base64,${imageBase64}`,
-        mode: "openai-image",
-      });
+      try {
+        const imageBase64 = await generateWithCpa(plan, selectedImageModel);
+        return NextResponse.json({
+          imageDataUrl: `data:image/png;base64,${imageBase64}`,
+          mode: "cpa-image",
+          model: selectedImageModel,
+        });
+      } catch (err) {
+        // fallback to local svg
+        const svg = buildPictureBookSvg(plan);
+        return NextResponse.json({
+          imageDataUrl: svgToDataUrl(svg),
+          svg,
+          mode: "canvas-fallback",
+          warning: err instanceof Error ? err.message : "CPA 出图失败，已回退本地矢量",
+        });
+      }
     }
 
     const svg = buildPictureBookSvg(plan);
@@ -42,8 +54,7 @@ export async function POST(req: NextRequest) {
   }
 }
 
-async function generateWithOpenAI(plan: ScenePlan, apiKey: string): Promise<string> {
-  const model = process.env.OPENAI_IMAGE_MODEL || "gpt-image-1";
+async function generateWithCpa(plan: ScenePlan, model = defaultImageModel()): Promise<string> {
   const panelDesc = plan.panels
     .map((p, i) => `${i + 1}. ${p.labelEn}/${p.labelZh}: ${p.action}`)
     .join("; ");
@@ -53,14 +64,11 @@ Soft pastel rolling hills background (blue, yellow, teal).
 Top-left bold title "${plan.titleEn}" and Chinese "${plan.titleZh}".
 Left white rounded lyrics card "SING & MOVE" with short lyrics.
 Main area: 2x4 grid of 8 colorful circles (orange, pink, purple, teal) each with THE SAME friendly orange-skinned child character in different poses: ${panelDesc}.
-Bilingual labels above each circle. High contrast, kawaii, not photorealistic, no watermark, no Xiaohongshu logo.`;
+Bilingual labels above each circle. High contrast, kawaii, not photorealistic, no watermark.`;
 
-  const res = await fetch("https://api.openai.com/v1/images/generations", {
+  const res = await cpaFetch("/images/generations", {
     method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    },
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       model,
       prompt,
@@ -70,13 +78,23 @@ Bilingual labels above each circle. High contrast, kawaii, not photorealistic, n
 
   if (!res.ok) {
     const text = await res.text();
-    throw new Error(`OpenAI 出图失败: ${res.status} ${text}`);
+    throw new Error(`CPA 出图失败: ${res.status} ${text}`);
   }
 
   const data = await res.json();
   const b64 = data.data?.[0]?.b64_json;
-  if (!b64) {
-    throw new Error("OpenAI 未返回图片数据");
+  if (b64) return b64;
+  const url = data.data?.[0]?.url;
+  if (url) {
+    const imgRes = await fetch(url, {
+      headers: {
+        "User-Agent":
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36",
+      },
+    });
+    if (!imgRes.ok) throw new Error("下载 CPA 图片失败");
+    const ab = await imgRes.arrayBuffer();
+    return Buffer.from(ab).toString("base64");
   }
-  return b64;
+  throw new Error("CPA 未返回图片数据");
 }

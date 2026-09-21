@@ -1,0 +1,72 @@
+export function getCpaBaseUrl(): string {
+  return (process.env.CPA_BASE_URL || "https://api.3099520.xyz/v1").replace(/\/$/, "");
+}
+
+export function getCpaApiKey(): string | undefined {
+  const key = process.env.CPA_API_KEY?.trim() || process.env.OPENAI_API_KEY?.trim();
+  return key || undefined;
+}
+
+export function requireCpaApiKey(): string {
+  const key = getCpaApiKey();
+  if (!key) {
+    throw new Error("缺少 CPA_API_KEY。请在 .env.local 配置后重试。");
+  }
+  return key;
+}
+
+export function chatModels(): string[] {
+  const primary = process.env.CPA_CHAT_MODEL?.trim() || "gemini-3.8-flash-high";
+  const fallback = process.env.CPA_CHAT_FALLBACK_MODEL?.trim() || "glm-5.3";
+  return primary === fallback ? [primary] : [primary, fallback];
+}
+
+export function transcribeModel(): string {
+  return process.env.CPA_TRANSCRIBE_MODEL?.trim() || "gemini-3.8-flash-high";
+}
+
+export function imageModel(): string {
+  return process.env.CPA_IMAGE_MODEL?.trim() || "gpt-image-2";
+}
+
+const BROWSER_UA =
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36";
+
+export async function cpaFetch(path: string, init: RequestInit = {}): Promise<Response> {
+  const key = requireCpaApiKey();
+  const base = getCpaBaseUrl();
+  const headers = new Headers(init.headers || {});
+  headers.set("Authorization", `Bearer ${key}`);
+  headers.set("User-Agent", BROWSER_UA);
+  if (!headers.has("Accept")) headers.set("Accept", "application/json");
+  return fetch(`${base}${path.startsWith("/") ? path : `/${path}`}`, {
+    ...init,
+    headers,
+  });
+}
+
+export async function cpaChatCompletion(body: Record<string, unknown>, models = chatModels()) {
+  let lastError = "";
+  for (const model of models) {
+    const res = await cpaFetch("/chat/completions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ...body, model }),
+    });
+    if (res.ok) {
+      const data = await res.json();
+      return { data, model };
+    }
+    const text = await res.text();
+    lastError = `${model}: ${res.status} ${text}`;
+    // try next model on 4xx/5xx
+  }
+  throw new Error(`CPA Chat 失败：${lastError}`);
+}
+
+
+export function resolveChatModels(primary?: string, fallback?: string): string[] {
+  const p = (primary || "").trim() || chatModels()[0];
+  const f = (fallback || "").trim() || chatModels()[1] || "glm-5.3";
+  return p === f ? [p] : [p, f];
+}
