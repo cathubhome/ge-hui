@@ -10,6 +10,10 @@ export type ScenePlan = {
   lyricExcerpt: string;
   instructionZh: string;
   panels: ScenePanel[];
+  /** English description of the PDF/source character for consistent AI drawing. */
+  characterDescription?: string;
 };
 
-export type GenerateMode = "canvas" | "openai-image";
+export type GenerateMode = "canvas" | "openai-image" | "ai";
+
+export type PdfExtractMode = "text" | "vision";

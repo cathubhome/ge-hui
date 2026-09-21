@@ -19,6 +19,7 @@ type FreeSite = {
 
 const WAIT_TIPS = [
   "正在听歌里的小故事…",
+  "正在看绘本里的小伙伴…",
   "正在想每一格画什么…",
   "画笔正在上色中…",
   "差不多好了，再等一小会儿…",
@@ -48,6 +49,9 @@ export default function HomePage() {
   const [imageModel, setImageModel] = useState("");
   const [freeSites, setFreeSites] = useState<FreeSite[]>([]);
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const [characterDescription, setCharacterDescription] = useState("");
+  const [referenceImageDataUrls, setReferenceImageDataUrls] = useState<string[]>([]);
+  const [extractMode, setExtractMode] = useState<"text" | "vision" | "">("");
 
   const canGenerate = useMemo(
     () => lyrics.trim().length > 8 && step !== "working",
@@ -99,13 +103,36 @@ export default function HomePage() {
 
     try {
       if (file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf")) {
+        setProgressLabel("正在读你的绘本…");
         const form = new FormData();
         form.append("file", file);
+        if (chatModel) form.append("chatModel", chatModel);
         const res = await fetch("/api/extract-pdf", { method: "POST", body: form });
-        const data = (await res.json()) as { text?: string; error?: string };
+        const data = (await res.json()) as {
+          text?: string;
+          error?: string;
+          mode?: "text" | "vision";
+          characterDescription?: string;
+          referenceImageDataUrls?: string[];
+          titleHint?: string;
+        };
         if (!res.ok) throw new Error(data.error || "读 PDF 没成功");
         setLyrics(data.text || "");
-        setProgressLabel("歌词已经读出来了");
+        setExtractMode(data.mode || "text");
+        setCharacterDescription(data.characterDescription || "");
+        setReferenceImageDataUrls(
+          Array.isArray(data.referenceImageDataUrls)
+            ? data.referenceImageDataUrls.filter((u) => typeof u === "string")
+            : [],
+        );
+        if (data.titleHint && !songTitle.trim()) {
+          setSongTitle(data.titleHint);
+        }
+        setProgressLabel(
+          data.mode === "vision"
+            ? "已经认出绘本里的小伙伴和歌词啦"
+            : "歌词已经读出来了",
+        );
         setStep("idle");
         return;
       }
@@ -136,7 +163,11 @@ export default function HomePage() {
     setStep("working");
     setImageDataUrl("");
     setPlan(null);
-    setProgressLabel("正在想画面…");
+    setProgressLabel(
+      characterDescription || referenceImageDataUrls.length
+        ? "正在看绘本里的小伙伴…"
+        : "正在想画面…",
+    );
 
     try {
       const planRes = await fetch("/api/plan-scene", {
@@ -146,6 +177,7 @@ export default function HomePage() {
           lyrics,
           songTitle: songTitle || undefined,
           chatModel: chatModel || undefined,
+          characterDescription: characterDescription || undefined,
         }),
       });
       const planData = (await planRes.json()) as {
@@ -158,12 +190,18 @@ export default function HomePage() {
       setPlan(planData.plan);
       setProgressLabel("正在画画…");
 
+      setProgressLabel("画笔正在上色中…");
       const imgRes = await fetch("/api/generate-image", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           plan: planData.plan,
           imageModel: imageModel || undefined,
+          characterDescription:
+            characterDescription || planData.plan.characterDescription || undefined,
+          referenceImageDataUrls: referenceImageDataUrls.length
+            ? referenceImageDataUrls
+            : undefined,
         }),
       });
       const imgData = (await imgRes.json()) as {
@@ -187,6 +225,9 @@ export default function HomePage() {
     setLyrics(DEMO_LYRICS);
     setError("");
     setFileName("");
+    setCharacterDescription("");
+    setReferenceImageDataUrls([]);
+    setExtractMode("");
   }
 
   function onDownload() {
@@ -288,6 +329,12 @@ export default function HomePage() {
           value={lyrics}
           onChange={(e) => setLyrics(e.target.value)}
         />
+        {extractMode === "vision" ? (
+          <p className="mt-2 text-xs leading-relaxed text-[#c2410c]">
+            已从图文绘本认出歌词
+            {characterDescription ? "，并记住了里面的小伙伴长相" : ""}。生成时会尽量画成同一位角色～
+          </p>
+        ) : null}
 
         <button
           type="button"
