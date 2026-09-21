@@ -145,6 +145,7 @@ export default function HomePage() {
   const [jobId, setJobId] = useState<string | null>(null);
   const [jobStatus, setJobStatus] = useState<JobStatus | "">("");
   const [dragOver, setDragOver] = useState(false);
+  const [showTip, setShowTip] = useState(false);
   const pollTimer = useRef<number | null>(null);
   const resumeTried = useRef(false);
 
@@ -804,6 +805,13 @@ export default function HomePage() {
                   >
                     再画一张
                   </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowTip(true)}
+                    className="rounded-xl border border-[#ff6b2c]/35 bg-[#fff4ee] px-4 py-2.5 text-sm font-medium text-[#c2410c]"
+                  >
+                    请杯奶茶
+                  </button>
                 </div>
                 {plan ? (
                   <details className="rounded-xl border border-[#f0e6d4] bg-[#fffdf8] px-3 py-2 text-xs text-neutral-600">
@@ -827,9 +835,31 @@ export default function HomePage() {
         </aside>
       </div>
 
-      <footer className="mt-10 space-y-1 text-center text-xs text-neutral-400">
+      <footer className="mt-10 space-y-3 text-center text-xs text-neutral-400">
         <p>歌绘 · 一页启蒙绘本</p>
         <p>适合睡前、英语角，或打印贴在墙上一起唱。</p>
+        <button
+          type="button"
+          onClick={() => setShowTip((v) => !v)}
+          className="mx-auto inline-flex items-center gap-1 rounded-full border border-[#ff6b2c]/30 bg-[#fff4ee] px-4 py-2 text-xs font-semibold text-[#c2410c] transition hover:bg-[#ffe8da]"
+        >
+          <span aria-hidden>🧋</span>
+          {showTip ? "收起奶茶码" : "喜欢歌绘？请杯奶茶"}
+        </button>
+        {showTip ? (
+          <div className="mx-auto mt-2 max-w-sm overflow-hidden rounded-3xl border-2 border-[#ff6b2c]/35 bg-[#fffdf8] p-3 shadow-sm">
+            <p className="mb-2 font-display text-base text-neutral-800">请杯奶茶</p>
+            <p className="mb-3 text-[11px] leading-relaxed text-neutral-500">
+              码的中间头像是微信自带的，四周没有额外遮挡，扫一扫就能打赏～
+            </p>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="/samples/ge-hui-tip-card.png"
+              alt="请杯奶茶打赏码"
+              className="mx-auto w-full max-w-[280px] rounded-2xl"
+            />
+          </div>
+        ) : null}
       </footer>
     </main>
   );
