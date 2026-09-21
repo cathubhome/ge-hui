@@ -107,7 +107,9 @@ export async function visionExtractPdf(
   chatModel?: string,
 ): Promise<VisionExtract> {
   const rasters = await rasterizePdfPages(
-    pdfBytes instanceof Uint8Array ? pdfBytes : new Uint8Array(pdfBytes),
+    pdfBytes instanceof ArrayBuffer
+      ? new Uint8Array(pdfBytes)
+      : Uint8Array.from(pdfBytes),
     { maxPages: 8, maxEdge: 960 },
   );
   if (!rasters.length) {

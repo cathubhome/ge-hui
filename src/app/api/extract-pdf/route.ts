@@ -34,8 +34,8 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const buf = Buffer.from(await file.arrayBuffer());
-    const parser = new PDFParse({ data: buf });
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    const parser = new PDFParse({ data: bytes });
     let pages = 0;
     let text = "";
     let signal = 0;

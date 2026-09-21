@@ -21,7 +21,7 @@ class NapiCanvasFactory {
   reset(c, width, height) { c.canvas.width = Math.max(1, Math.ceil(width)); c.canvas.height = Math.max(1, Math.ceil(height)); }
   destroy(c) { c.canvas = null; c.context = null; }
 }
-const buf = new Uint8Array(readFileSync(pdfPath));
+const buf = Uint8Array.from(readFileSync(pdfPath));
 const canvasFactory = new NapiCanvasFactory();
 const doc = await pdfjs.getDocument({ data: buf, useSystemFonts: true, disableFontFace: true, isEvalSupported: false, canvasFactory }).promise;
 mkdirSync(outDir, { recursive: true });

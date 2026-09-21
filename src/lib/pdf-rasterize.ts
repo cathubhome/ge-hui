@@ -90,8 +90,15 @@ function loadPdfjs(): Pdfjs {
 /**
  * Rasterize the first N PDF pages to PNG data URLs for multimodal vision.
  */
+function toPlainUint8Array(data: Uint8Array | ArrayBuffer): Uint8Array {
+  if (data instanceof ArrayBuffer) return new Uint8Array(data);
+  // Node Buffer is a Uint8Array subclass; pdfjs rejects Buffer specifically.
+  // Always copy into a plain Uint8Array (not a Buffer).
+  return Uint8Array.from(data);
+}
+
 export async function rasterizePdfPages(
-  pdfBytes: Uint8Array,
+  pdfBytes: Uint8Array | ArrayBuffer,
   opts?: { maxPages?: number; maxEdge?: number },
 ): Promise<RasterPage[]> {
   const maxPages = opts?.maxPages ?? MAX_PAGES;
@@ -100,7 +107,7 @@ export async function rasterizePdfPages(
   const canvasFactory = new NapiCanvasFactory();
 
   const doc = await pdfjs.getDocument({
-    data: pdfBytes,
+    data: toPlainUint8Array(pdfBytes),
     useSystemFonts: true,
     disableFontFace: true,
     isEvalSupported: false,
