@@ -366,12 +366,36 @@ export default function HomePage() {
 
   function onDownload() {
     if (!imageDataUrl) return;
-    const a = document.createElement("a");
-    a.href = imageDataUrl;
-    a.download = `${(songTitle || "ge-hui").replace(/[^\w\u4e00-\u9fff-]+/g, "_")}.png`;
-    a.click();
+    const filename = `${(songTitle || "ge-hui").replace(/[^\w\u4e00-\u9fff-]+/g, "_") || "ge-hui"}.png`;
+    try {
+      // Large data: URLs often fail silently with <a download>; use a Blob instead.
+      const comma = imageDataUrl.indexOf(",");
+      const meta = comma >= 0 ? imageDataUrl.slice(0, comma) : "";
+      const b64 = comma >= 0 ? imageDataUrl.slice(comma + 1) : imageDataUrl;
+      const mimeMatch = /data:([^;]+)/.exec(meta);
+      const mime = mimeMatch?.[1] || "image/png";
+      const bin = atob(b64);
+      const bytes = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+      const blob = new Blob([bytes], { type: mime });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      a.rel = "noopener";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 1500);
+    } catch {
+      const a = document.createElement("a");
+      a.href = imageDataUrl;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    }
   }
-
   function onNewGenerate() {
     if (jobBusy) return;
     void onGenerate();
