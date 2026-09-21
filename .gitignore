@@ -42,3 +42,6 @@ next-env.d.ts
 
 .env.local
 
+
+# Local durable generate jobs (no RDBMS)
+data/

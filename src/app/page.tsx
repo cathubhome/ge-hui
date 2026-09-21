@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ScenePlan } from "@/lib/types";
+import type { JobRecord, JobStatus } from "@/lib/job-types";
 
-type Step = "idle" | "working" | "done";
+type UiStep = "idle" | "working" | "done";
 
 type ModelOption = {
   id: string;
@@ -16,6 +17,9 @@ type FreeSite = {
   url: string;
   tip: string;
 };
+
+const JOB_LS_KEY = "ge-hui-job-id";
+const POLL_MS = 1500;
 
 const WAIT_TIPS = [
   "正在听歌里的小故事…",
@@ -32,11 +36,24 @@ Head, shoulders, knees and toes, knees and toes.
 And eyes and ears and mouth and nose.
 Head, shoulders, knees and toes, knees and toes.`;
 
+function fileToBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const r = String(reader.result || "");
+      const i = r.indexOf("base64,");
+      resolve(i >= 0 ? r.slice(i + 7) : r);
+    };
+    reader.onerror = () => reject(new Error("读文件失败"));
+    reader.readAsDataURL(file);
+  });
+}
+
 export default function HomePage() {
   const [lyrics, setLyrics] = useState("");
   const [songTitle, setSongTitle] = useState("");
   const [fileName, setFileName] = useState("");
-  const [step, setStep] = useState<Step>("idle");
+  const [step, setStep] = useState<UiStep>("idle");
   const [progressLabel, setProgressLabel] = useState("");
   const [waitSec, setWaitSec] = useState(0);
   const [tipIndex, setTipIndex] = useState(0);
@@ -50,12 +67,96 @@ export default function HomePage() {
   const [freeSites, setFreeSites] = useState<FreeSite[]>([]);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [characterDescription, setCharacterDescription] = useState("");
-  const [referenceImageDataUrls, setReferenceImageDataUrls] = useState<string[]>([]);
-  const [extractMode, setExtractMode] = useState<"text" | "vision" | "">("");
+  const [needsVision, setNeedsVision] = useState(false);
+  const [pendingPdfBase64, setPendingPdfBase64] = useState<string | null>(null);
+  const [uploadTip, setUploadTip] = useState("");
+  const [jobId, setJobId] = useState<string | null>(null);
+  const [jobStatus, setJobStatus] = useState<JobStatus | "">("");
+  const pollTimer = useRef<number | null>(null);
+  const resumeTried = useRef(false);
 
-  const canGenerate = useMemo(
-    () => lyrics.trim().length > 8 && step !== "working",
-    [lyrics, step],
+  const jobBusy =
+    jobStatus === "queued" || jobStatus === "running" || step === "working";
+
+  const canGenerate = useMemo(() => {
+    if (jobBusy) return false;
+    if (lyrics.trim().length > 8) return true;
+    if (needsVision && pendingPdfBase64) return true;
+    return false;
+  }, [lyrics, jobBusy, needsVision, pendingPdfBase64]);
+
+  const stopPoll = useCallback(() => {
+    if (pollTimer.current != null) {
+      window.clearInterval(pollTimer.current);
+      pollTimer.current = null;
+    }
+  }, []);
+
+  const applyJobSnapshot = useCallback((job: JobRecord) => {
+    setJobId(job.id);
+    setJobStatus(job.status);
+    setProgressLabel(job.progressLabel || "");
+    if (job.result?.lyrics) setLyrics(job.result.lyrics);
+    if (job.result?.songTitle) setSongTitle(job.result.songTitle);
+    if (job.result?.characterDescription) {
+      setCharacterDescription(job.result.characterDescription);
+    }
+    if (job.result?.plan) setPlan(job.result.plan);
+    if (job.status === "queued" || job.status === "running") {
+      setStep("working");
+      setError("");
+      setImageDataUrl("");
+    } else if (job.status === "done") {
+      setStep("done");
+      if (job.result?.imageDataUrl) setImageDataUrl(job.result.imageDataUrl);
+      setError("");
+      // Keep job id so refresh still shows result; user can start a new one later.
+    } else if (job.status === "error") {
+      setStep("idle");
+      setError(job.error || "出了点小状况，再试一次吧");
+    }
+  }, []);
+
+  const pollJob = useCallback(
+    async (id: string) => {
+      try {
+        const res = await fetch(`/api/jobs/${id}`);
+        const data = (await res.json()) as { job?: JobRecord; error?: string };
+        if (!res.ok || !data.job) {
+          if (res.status === 404) {
+            stopPoll();
+            try {
+              localStorage.removeItem(JOB_LS_KEY);
+            } catch {
+              /* ignore */
+            }
+            setJobId(null);
+            setJobStatus("");
+            setStep("idle");
+            setError(data.error || "找不到上次的任务了，请再生成一次～");
+          }
+          return;
+        }
+        applyJobSnapshot(data.job);
+        if (data.job.status === "done" || data.job.status === "error") {
+          stopPoll();
+        }
+      } catch {
+        // transient network — keep polling
+      }
+    },
+    [applyJobSnapshot, stopPoll],
+  );
+
+  const startPolling = useCallback(
+    (id: string) => {
+      stopPoll();
+      void pollJob(id);
+      pollTimer.current = window.setInterval(() => {
+        void pollJob(id);
+      }, POLL_MS);
+    },
+    [pollJob, stopPoll],
   );
 
   useEffect(() => {
@@ -74,10 +175,44 @@ export default function HomePage() {
         setChatModel(data.defaults?.chat ?? "");
         setImageModel(data.defaults?.image ?? "");
       } catch {
-        // ignore; advanced settings stay empty
+        // ignore
       }
     })();
   }, []);
+
+  // F5 resume: if localStorage has job id and job still running, keep Generate disabled + poll.
+  useEffect(() => {
+    if (resumeTried.current) return;
+    resumeTried.current = true;
+    let saved = "";
+    try {
+      saved = localStorage.getItem(JOB_LS_KEY) || "";
+    } catch {
+      saved = "";
+    }
+    if (!saved) return;
+    void (async () => {
+      try {
+        const res = await fetch(`/api/jobs/${saved}`);
+        const data = (await res.json()) as { job?: JobRecord };
+        if (!res.ok || !data.job) {
+          try {
+            localStorage.removeItem(JOB_LS_KEY);
+          } catch {
+            /* ignore */
+          }
+          return;
+        }
+        applyJobSnapshot(data.job);
+        if (data.job.status === "queued" || data.job.status === "running") {
+          startPolling(data.job.id);
+        }
+      } catch {
+        // ignore
+      }
+    })();
+    return () => stopPoll();
+  }, [applyJobSnapshot, startPolling, stopPoll]);
 
   useEffect(() => {
     if (step !== "working") {
@@ -94,50 +229,57 @@ export default function HomePage() {
 
   async function onPickFile(file: File | null) {
     if (!file) return;
+    if (jobBusy) return;
     setError("");
     setFileName(file.name);
-    setStep("working");
-    setProgressLabel("正在读你的文件…");
+    setUploadTip("");
+    setNeedsVision(false);
+    setPendingPdfBase64(null);
+    setCharacterDescription("");
     setImageDataUrl("");
     setPlan(null);
 
     try {
       if (file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf")) {
-        setProgressLabel("正在读你的绘本…");
+        // Light path only — no Gemini on upload.
+        setProgressLabel("正在读你的文件…");
         const form = new FormData();
         form.append("file", file);
-        if (chatModel) form.append("chatModel", chatModel);
         const res = await fetch("/api/extract-pdf", { method: "POST", body: form });
         const data = (await res.json()) as {
           text?: string;
           error?: string;
-          mode?: "text" | "vision";
-          characterDescription?: string;
-          referenceImageDataUrls?: string[];
-          titleHint?: string;
+          mode?: string;
+          needsVision?: boolean;
+          tip?: string;
         };
-        if (!res.ok) throw new Error(data.error || "读 PDF 没成功");
-        setLyrics(data.text || "");
-        setExtractMode(data.mode || "text");
-        setCharacterDescription(data.characterDescription || "");
-        setReferenceImageDataUrls(
-          Array.isArray(data.referenceImageDataUrls)
-            ? data.referenceImageDataUrls.filter((u) => typeof u === "string")
-            : [],
-        );
-        if (data.titleHint && !songTitle.trim()) {
-          setSongTitle(data.titleHint);
+        if (!res.ok && !data.needsVision) {
+          throw new Error(data.error || "读 PDF 没成功");
         }
-        setProgressLabel(
-          data.mode === "vision"
-            ? "已经认出绘本里的小伙伴和歌词啦"
-            : "歌词已经读出来了",
-        );
+        if (data.needsVision || data.mode === "needs_vision") {
+          const b64 = await fileToBase64(file);
+          setPendingPdfBase64(b64);
+          setNeedsVision(true);
+          setLyrics("");
+          setUploadTip(
+            data.tip ||
+              "这份 PDF 的字印在图上。文件先留在你这边，点「生成歌绘本」时再帮你看图读词～",
+          );
+          setProgressLabel("");
+          setStep("idle");
+          return;
+        }
+        setLyrics(data.text || "");
+        setNeedsVision(false);
+        setPendingPdfBase64(null);
+        setUploadTip("歌词已经读出来了，可以点生成啦～");
+        setProgressLabel("");
         setStep("idle");
         return;
       }
 
       if (file.type.startsWith("audio/") || /\.(mp3|wav|m4a|ogg|flac|aac)$/i.test(file.name)) {
+        setStep("working");
         setProgressLabel("正在听歌并整理歌词…");
         const form = new FormData();
         form.append("file", file);
@@ -146,6 +288,8 @@ export default function HomePage() {
         const data = (await res.json()) as { text?: string; error?: string };
         if (!res.ok) throw new Error(data.error || "听歌没听清");
         setLyrics(data.text || "");
+        setNeedsVision(false);
+        setPendingPdfBase64(null);
         setProgressLabel("歌词整理好了");
         setStep("idle");
         return;
@@ -159,75 +303,65 @@ export default function HomePage() {
   }
 
   async function onGenerate() {
+    if (jobBusy) return;
     setError("");
-    setStep("working");
     setImageDataUrl("");
     setPlan(null);
+    setUploadTip("");
+    setStep("working");
     setProgressLabel(
-      characterDescription || referenceImageDataUrls.length
-        ? "正在看绘本里的小伙伴…"
-        : "正在想画面…",
+      needsVision && pendingPdfBase64
+        ? "开始准备：先看图读词…"
+        : "开始准备：想画面…",
     );
 
     try {
-      const planRes = await fetch("/api/plan-scene", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          lyrics,
-          songTitle: songTitle || undefined,
-          chatModel: chatModel || undefined,
-          characterDescription: characterDescription || undefined,
-        }),
-      });
-      const planData = (await planRes.json()) as {
-        plan?: ScenePlan;
-        error?: string;
+      const body: Record<string, unknown> = {
+        lyrics,
+        songTitle: songTitle || undefined,
+        chatModel: chatModel || undefined,
+        imageModel: imageModel || undefined,
+        characterDescription: characterDescription || undefined,
+        needsVision: Boolean(needsVision && pendingPdfBase64),
       };
-      if (!planRes.ok || !planData.plan) {
-        throw new Error(planData.error || "画面构思没想好");
+      if (needsVision && pendingPdfBase64) {
+        body.pdfBase64 = pendingPdfBase64;
       }
-      setPlan(planData.plan);
-      setProgressLabel("正在画画…");
 
-      setProgressLabel("画笔正在上色中…");
-      const imgRes = await fetch("/api/generate-image", {
+      const res = await fetch("/api/jobs", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          plan: planData.plan,
-          imageModel: imageModel || undefined,
-          characterDescription:
-            characterDescription || planData.plan.characterDescription || undefined,
-          referenceImageDataUrls: referenceImageDataUrls.length
-            ? referenceImageDataUrls
-            : undefined,
-        }),
+        body: JSON.stringify(body),
       });
-      const imgData = (await imgRes.json()) as {
-        imageDataUrl?: string;
-        error?: string;
-      };
-      if (!imgRes.ok || !imgData.imageDataUrl) {
-        throw new Error(imgData.error || "画画没成功");
+      const data = (await res.json()) as { job?: JobRecord; error?: string };
+      if (!res.ok || !data.job) {
+        throw new Error(data.error || "没能开始生成");
       }
-      setImageDataUrl(imgData.imageDataUrl);
-      setProgressLabel("绘本做好了");
-      setStep("done");
+
+      try {
+        localStorage.setItem(JOB_LS_KEY, data.job.id);
+      } catch {
+        /* ignore */
+      }
+      applyJobSnapshot(data.job);
+      startPolling(data.job.id);
     } catch (e) {
       setError(e instanceof Error ? e.message : "出了点小状况，再试一次吧");
       setStep("idle");
+      setJobStatus("");
     }
   }
 
   function tryDemoSong() {
+    if (jobBusy) return;
     setSongTitle(DEMO_SONG_TITLE);
     setLyrics(DEMO_LYRICS);
     setError("");
     setFileName("");
     setCharacterDescription("");
-    setReferenceImageDataUrls([]);
-    setExtractMode("");
+    setNeedsVision(false);
+    setPendingPdfBase64(null);
+    setUploadTip("");
   }
 
   function onDownload() {
@@ -236,6 +370,11 @@ export default function HomePage() {
     a.href = imageDataUrl;
     a.download = `${(songTitle || "ge-hui").replace(/[^\w\u4e00-\u9fff-]+/g, "_")}.png`;
     a.click();
+  }
+
+  function onNewGenerate() {
+    if (jobBusy) return;
+    void onGenerate();
   }
 
   return (
@@ -269,7 +408,8 @@ export default function HomePage() {
             <button
               type="button"
               onClick={tryDemoSong}
-              className="mt-1 w-full rounded-2xl border border-[#ff6b2c]/40 bg-[#fff4ee] px-4 py-3 text-sm font-semibold text-[#c2410c] transition hover:bg-[#ffe8da] sm:w-auto"
+              disabled={jobBusy}
+              className="mt-1 w-full rounded-2xl border border-[#ff6b2c]/40 bg-[#fff4ee] px-4 py-3 text-sm font-semibold text-[#c2410c] transition hover:bg-[#ffe8da] disabled:opacity-50 sm:w-auto"
             >
               用这首歌试一试
             </button>
@@ -280,9 +420,10 @@ export default function HomePage() {
       <section className="rounded-3xl border border-neutral-200/80 bg-white p-5 shadow-sm sm:p-7">
         <label className="block text-sm font-medium text-neutral-800">歌曲名（可选）</label>
         <input
-          className="mt-2 w-full rounded-xl border border-neutral-200 bg-[#faf7f0] px-3 py-2.5 text-sm outline-none ring-[#ff6b2c]/40 focus:ring-2"
+          className="mt-2 w-full rounded-xl border border-neutral-200 bg-[#faf7f0] px-3 py-2.5 text-sm outline-none ring-[#ff6b2c]/40 focus:ring-2 disabled:opacity-60"
           placeholder="例如 Head Shoulders Knees and Toes"
           value={songTitle}
+          disabled={jobBusy}
           onChange={(e) => setSongTitle(e.target.value)}
         />
 
@@ -298,9 +439,13 @@ export default function HomePage() {
               type="file"
               accept="audio/*,.pdf,application/pdf"
               className="hidden"
+              disabled={jobBusy}
               onChange={(e) => void onPickFile(e.target.files?.[0] ?? null)}
             />
           </label>
+          {uploadTip ? (
+            <p className="mt-2 text-xs leading-relaxed text-[#c2410c]">{uploadTip}</p>
+          ) : null}
           {freeSites.length > 0 ? (
             <p className="mt-2 text-xs leading-relaxed text-neutral-500">
               也可以先用浏览器里的免费听写工具整理歌词，再粘贴到下面：
@@ -324,15 +469,15 @@ export default function HomePage() {
 
         <label className="mt-5 block text-sm font-medium text-neutral-800">歌词</label>
         <textarea
-          className="mt-2 min-h-[160px] w-full resize-y rounded-2xl border border-neutral-200 bg-[#faf7f0] px-3 py-3 text-sm leading-relaxed outline-none ring-[#ff6b2c]/40 focus:ring-2"
+          className="mt-2 min-h-[160px] w-full resize-y rounded-2xl border border-neutral-200 bg-[#faf7f0] px-3 py-3 text-sm leading-relaxed outline-none ring-[#ff6b2c]/40 focus:ring-2 disabled:opacity-60"
           placeholder="把歌词粘贴在这里，或上传文件自动整理…"
           value={lyrics}
+          disabled={jobBusy}
           onChange={(e) => setLyrics(e.target.value)}
         />
-        {extractMode === "vision" ? (
-          <p className="mt-2 text-xs leading-relaxed text-[#c2410c]">
-            已从图文绘本认出歌词
-            {characterDescription ? "，并记住了里面的小伙伴长相" : ""}。生成时会尽量画成同一位角色～
+        {needsVision && pendingPdfBase64 ? (
+          <p className="mt-2 text-xs leading-relaxed text-neutral-500">
+            已记住这份图文绘本。生成时会先看图读词，再画画～
           </p>
         ) : null}
 
@@ -349,8 +494,9 @@ export default function HomePage() {
             <div>
               <label className="text-xs font-medium text-neutral-600">听歌 / 构思模型</label>
               <select
-                className="mt-1 w-full rounded-lg border border-neutral-200 bg-white px-2 py-2 text-sm"
+                className="mt-1 w-full rounded-lg border border-neutral-200 bg-white px-2 py-2 text-sm disabled:opacity-60"
                 value={chatModel}
+                disabled={jobBusy}
                 onChange={(e) => setChatModel(e.target.value)}
               >
                 {chatModels.map((m) => (
@@ -363,8 +509,9 @@ export default function HomePage() {
             <div>
               <label className="text-xs font-medium text-neutral-600">画画模型</label>
               <select
-                className="mt-1 w-full rounded-lg border border-neutral-200 bg-white px-2 py-2 text-sm"
+                className="mt-1 w-full rounded-lg border border-neutral-200 bg-white px-2 py-2 text-sm disabled:opacity-60"
                 value={imageModel}
+                disabled={jobBusy}
                 onChange={(e) => setImageModel(e.target.value)}
               >
                 {imageModels.map((m) => (
@@ -383,14 +530,17 @@ export default function HomePage() {
           onClick={() => void onGenerate()}
           className="mt-5 w-full rounded-2xl bg-[#ff6b2c] px-4 py-3.5 text-sm font-semibold text-white shadow-sm transition enabled:hover:bg-[#ef5a1a] disabled:cursor-not-allowed disabled:opacity-50"
         >
-          {step === "working" ? "正在生成…" : "生成歌绘本"}
+          {jobBusy ? "正在生成…" : "生成歌绘本"}
         </button>
 
         {step === "working" ? (
           <div className="mt-4 rounded-2xl border border-orange-100 bg-orange-50/80 px-4 py-3 text-sm text-neutral-700">
-            <p className="font-medium text-[#c2410c]">{progressLabel}</p>
+            <p className="font-medium text-[#c2410c]">{progressLabel || "正在生成…"}</p>
             <p className="mt-1 text-neutral-600">{WAIT_TIPS[tipIndex]}</p>
-            <p className="mt-1 text-xs text-neutral-500">已等待 {waitSec} 秒</p>
+            <p className="mt-1 text-xs text-neutral-500">
+              已等待 {waitSec} 秒
+              {jobId ? ` · 任务保留中，刷新页面也会继续` : ""}
+            </p>
           </div>
         ) : null}
 
@@ -400,9 +550,10 @@ export default function HomePage() {
             <button
               type="button"
               className="mt-2 text-sm font-medium text-[#ff6b2c] underline-offset-2 hover:underline"
+              disabled={jobBusy}
               onClick={() => {
                 setError("");
-                if (lyrics.trim().length > 8) void onGenerate();
+                if (canGenerate) void onGenerate();
               }}
             >
               再试一次
@@ -441,8 +592,9 @@ export default function HomePage() {
               </button>
               <button
                 type="button"
-                onClick={() => void onGenerate()}
-                className="rounded-xl border border-neutral-200 bg-white px-4 py-2.5 text-sm text-neutral-700"
+                disabled={jobBusy}
+                onClick={onNewGenerate}
+                className="rounded-xl border border-neutral-200 bg-white px-4 py-2.5 text-sm text-neutral-700 disabled:opacity-50"
               >
                 再画一张
               </button>
