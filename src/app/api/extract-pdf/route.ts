@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { PDFParse } from "pdf-parse";
 import {
   TEXT_LAYER_MIN_SIGNAL,
   contentSignal,
   usableLyricsText,
 } from "@/lib/pdf-text";
+import { extractPdfTextLayer } from "@/lib/pdf-text-layer";
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
@@ -35,20 +35,10 @@ export async function POST(req: NextRequest) {
     }
 
     const bytes = new Uint8Array(await file.arrayBuffer());
-    const parser = new PDFParse({ data: bytes });
-    let pages = 0;
-    let text = "";
-    let signal = 0;
-
-    try {
-      const parsed = await parser.getText();
-      pages = parsed.total || 0;
-      const raw = (parsed.text || "").trim();
-      text = usableLyricsText(raw);
-      signal = contentSignal(text);
-    } finally {
-      await parser.destroy().catch(() => undefined);
-    }
+    const parsed = await extractPdfTextLayer(bytes);
+    const pages = parsed.pages || 0;
+    const text = usableLyricsText((parsed.text || "").trim());
+    const signal = contentSignal(text);
 
     if (text && signal >= TEXT_LAYER_MIN_SIGNAL) {
       return NextResponse.json({
@@ -60,14 +50,13 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // Image-only / low-signal: detect only — keep PDF on client for Generate.
     return NextResponse.json({
       text: "",
       pages,
       extractedChars: signal,
       mode: "needs_vision",
       needsVision: true,
-      tip: "这份 PDF 的字印在图上。文件先留在你这边，点「生成歌绘本」时再帮你看图读词～",
+      tip: "这份 PDF 字印在图上。文件已留在浏览器，点「生成歌绘本」时再帮你看图读词～",
     });
   } catch {
     return NextResponse.json(

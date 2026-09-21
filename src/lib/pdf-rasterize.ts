@@ -82,7 +82,14 @@ function loadPdfjs(): Pdfjs {
   const require = createRequire(join(process.cwd(), "package.json"));
   const pdfjs = require("pdfjs-dist/legacy/build/pdf.js") as Pdfjs;
   if (pdfjs.GlobalWorkerOptions) {
-    pdfjs.GlobalWorkerOptions.workerSrc = "";
+    // Pin worker to the same pdfjs-dist copy we require (avoid pdf-parse's nested 5.x).
+    try {
+      pdfjs.GlobalWorkerOptions.workerSrc = require.resolve(
+        "pdfjs-dist/legacy/build/pdf.worker.js",
+      );
+    } catch {
+      pdfjs.GlobalWorkerOptions.workerSrc = "";
+    }
   }
   return pdfjs;
 }
@@ -111,6 +118,7 @@ export async function rasterizePdfPages(
     useSystemFonts: true,
     disableFontFace: true,
     isEvalSupported: false,
+    disableWorker: true,
     canvasFactory,
   }).promise;
 

@@ -15,7 +15,13 @@ NodeModule._resolveFilename = function (request, parent, isMain, options) {
   return originalResolve.call(this, request, parent, isMain, options);
 };
 const pdfjs = require("pdfjs-dist/legacy/build/pdf.js");
-if (pdfjs.GlobalWorkerOptions) pdfjs.GlobalWorkerOptions.workerSrc = "";
+if (pdfjs.GlobalWorkerOptions) {
+  try {
+    pdfjs.GlobalWorkerOptions.workerSrc = require.resolve("pdfjs-dist/legacy/build/pdf.worker.js");
+  } catch {
+    pdfjs.GlobalWorkerOptions.workerSrc = "";
+  }
+}
 class NapiCanvasFactory {
   create(width, height) { const canvas = createCanvas(Math.max(1, Math.ceil(width)), Math.max(1, Math.ceil(height))); return { canvas, context: canvas.getContext("2d") }; }
   reset(c, width, height) { c.canvas.width = Math.max(1, Math.ceil(width)); c.canvas.height = Math.max(1, Math.ceil(height)); }
@@ -23,7 +29,7 @@ class NapiCanvasFactory {
 }
 const buf = Uint8Array.from(readFileSync(pdfPath));
 const canvasFactory = new NapiCanvasFactory();
-const doc = await pdfjs.getDocument({ data: buf, useSystemFonts: true, disableFontFace: true, isEvalSupported: false, canvasFactory }).promise;
+const doc = await pdfjs.getDocument({ data: buf, useSystemFonts: true, disableFontFace: true, isEvalSupported: false, disableWorker: true, canvasFactory }).promise;
 mkdirSync(outDir, { recursive: true });
 const n = Math.min(doc.numPages || 0, maxPages);
 const meta = [];
