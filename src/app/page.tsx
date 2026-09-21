@@ -24,6 +24,13 @@ const WAIT_TIPS = [
   "差不多好了，再等一小会儿…",
 ];
 
+const DEMO_SONG_TITLE = "Head Shoulders Knees and Toes";
+
+const DEMO_LYRICS = `Head, shoulders, knees and toes, knees and toes.
+Head, shoulders, knees and toes, knees and toes.
+And eyes and ears and mouth and nose.
+Head, shoulders, knees and toes, knees and toes.`;
+
 export default function HomePage() {
   const [lyrics, setLyrics] = useState("");
   const [songTitle, setSongTitle] = useState("");
@@ -175,6 +182,13 @@ export default function HomePage() {
     }
   }
 
+  function tryDemoSong() {
+    setSongTitle(DEMO_SONG_TITLE);
+    setLyrics(DEMO_LYRICS);
+    setError("");
+    setFileName("");
+  }
+
   function onDownload() {
     if (!imageDataUrl) return;
     const a = document.createElement("a");
@@ -194,6 +208,33 @@ export default function HomePage() {
           上传儿歌音频或歌词 PDF，一键生成一张适合打印的启蒙绘本页。
         </p>
       </header>
+
+      <section className="mb-6 overflow-hidden rounded-3xl border border-neutral-200/80 bg-white shadow-sm">
+        <div className="grid gap-0 sm:grid-cols-2">
+          <div className="bg-[#faf7f0] p-4 sm:p-5">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="/samples/ge-hui-final-sample.png"
+              alt="歌绘成品示例：Head Shoulders Knees and Toes"
+              className="w-full rounded-2xl border border-neutral-100 bg-white shadow-sm"
+            />
+          </div>
+          <div className="flex flex-col justify-center gap-3 p-5 sm:p-6">
+            <p className="text-xs font-semibold tracking-wide text-[#ff6b2c]">成品示例</p>
+            <h2 className="text-lg font-bold text-neutral-900">生成后的绘本页可以长这样</h2>
+            <p className="text-sm leading-relaxed text-neutral-600">
+              这是一首经典儿歌做成的一页启蒙绘本示例。点下面按钮，会自动填好歌名和歌词，你可以直接生成试试。
+            </p>
+            <button
+              type="button"
+              onClick={tryDemoSong}
+              className="mt-1 w-full rounded-2xl border border-[#ff6b2c]/40 bg-[#fff4ee] px-4 py-3 text-sm font-semibold text-[#c2410c] transition hover:bg-[#ffe8da] sm:w-auto"
+            >
+              用这首歌试一试
+            </button>
+          </div>
+        </div>
+      </section>
 
       <section className="rounded-3xl border border-neutral-200/80 bg-white p-5 shadow-sm sm:p-7">
         <label className="block text-sm font-medium text-neutral-800">歌曲名（可选）</label>
