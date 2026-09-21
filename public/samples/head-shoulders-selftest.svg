@@ -1,0 +1,110 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="900" viewBox="0 0 1200 900">
+  <rect width="1200" height="900" fill="#F7F3E8"/>
+  <ellipse cx="200" cy="820" rx="520" ry="160" fill="#A8D5E5"/>
+  <ellipse cx="700" cy="860" rx="480" ry="140" fill="#F5D76E"/>
+  <ellipse cx="1050" cy="800" rx="360" ry="150" fill="#7BC8B8"/>
+  <text x="40" y="56" font-family="Arial Black, Arial" font-size="28" font-weight="900">HEAD, SHOULDERS, KNEES &amp; TOES</text>
+  <text x="40" y="88" font-family="Microsoft YaHei, Arial" font-size="20">头 · 肩膀 · 膝盖 · 脚趾</text>
+  <rect x="32" y="120" width="340" height="320" rx="18" fill="#fff" stroke="#e5e5e5"/>
+  <text x="48" y="152" font-family="Arial Black" font-size="16">SING &amp; MOVE</text>
+  <text x="48" y="190" font-family="Microsoft YaHei, Arial" font-size="15"><tspan x="48" dy="0">Head, shoulders, knees and toes</tspan><tspan x="48" dy="22">And eyes and ears and mouth and nose</tspan><tspan x="48" dy="22">头，肩膀，膝盖，脚趾</tspan><tspan x="48" dy="22">眼睛，耳朵，嘴巴，鼻子</tspan></text>
+  <text x="48" y="410" font-family="Microsoft YaHei, Arial" font-size="14">边唱边指一指，摸一摸！</text>
+  
+      <text x="420" y="102" text-anchor="middle" font-family="Arial" font-size="18" font-weight="700">HEAD</text>
+      <text x="420" y="122" text-anchor="middle" font-family="Microsoft YaHei, Arial" font-size="14">头</text>
+      <circle cx="420" cy="200" r="70" fill="#FF6B2C" />
+      <circle cx="420" cy="182" r="16" fill="#FF8A4C"/>
+      <circle cx="415" cy="180" r="2.2" fill="#222"/>
+      <circle cx="425" cy="180" r="2.2" fill="#222"/>
+      <circle cx="420" cy="185" r="2.5" fill="#E74C3C"/>
+      <rect x="402" y="198" width="36" height="34" rx="8" fill="#3A6EA5"/>
+      <ellipse cx="406" cy="252" rx="9" ry="5" fill="#E74C3C"/>
+      <ellipse cx="434" cy="252" rx="9" ry="5" fill="#E74C3C"/>
+    
+
+      <text x="600" y="102" text-anchor="middle" font-family="Arial" font-size="18" font-weight="700">SHOULDERS</text>
+      <text x="600" y="122" text-anchor="middle" font-family="Microsoft YaHei, Arial" font-size="14">肩膀</text>
+      <circle cx="600" cy="200" r="70" fill="#FF5FA2" />
+      <circle cx="600" cy="182" r="16" fill="#FF8A4C"/>
+      <circle cx="595" cy="180" r="2.2" fill="#222"/>
+      <circle cx="605" cy="180" r="2.2" fill="#222"/>
+      <circle cx="600" cy="185" r="2.5" fill="#E74C3C"/>
+      <rect x="582" y="198" width="36" height="34" rx="8" fill="#3A6EA5"/>
+      <ellipse cx="586" cy="252" rx="9" ry="5" fill="#E74C3C"/>
+      <ellipse cx="614" cy="252" rx="9" ry="5" fill="#E74C3C"/>
+    
+
+      <text x="780" y="102" text-anchor="middle" font-family="Arial" font-size="18" font-weight="700">KNEES</text>
+      <text x="780" y="122" text-anchor="middle" font-family="Microsoft YaHei, Arial" font-size="14">膝盖</text>
+      <circle cx="780" cy="200" r="70" fill="#6B3FA0" />
+      <circle cx="780" cy="182" r="16" fill="#FF8A4C"/>
+      <circle cx="775" cy="180" r="2.2" fill="#222"/>
+      <circle cx="785" cy="180" r="2.2" fill="#222"/>
+      <circle cx="780" cy="185" r="2.5" fill="#E74C3C"/>
+      <rect x="762" y="198" width="36" height="34" rx="8" fill="#3A6EA5"/>
+      <ellipse cx="766" cy="252" rx="9" ry="5" fill="#E74C3C"/>
+      <ellipse cx="794" cy="252" rx="9" ry="5" fill="#E74C3C"/>
+    
+
+      <text x="960" y="102" text-anchor="middle" font-family="Arial" font-size="18" font-weight="700">TOES</text>
+      <text x="960" y="122" text-anchor="middle" font-family="Microsoft YaHei, Arial" font-size="14">脚趾</text>
+      <circle cx="960" cy="200" r="70" fill="#1DB8A6" />
+      <circle cx="960" cy="182" r="16" fill="#FF8A4C"/>
+      <circle cx="955" cy="180" r="2.2" fill="#222"/>
+      <circle cx="965" cy="180" r="2.2" fill="#222"/>
+      <circle cx="960" cy="185" r="2.5" fill="#E74C3C"/>
+      <rect x="942" y="198" width="36" height="34" rx="8" fill="#3A6EA5"/>
+      <ellipse cx="946" cy="252" rx="9" ry="5" fill="#E74C3C"/>
+      <ellipse cx="974" cy="252" rx="9" ry="5" fill="#E74C3C"/>
+    
+
+      <text x="420" y="382" text-anchor="middle" font-family="Arial" font-size="18" font-weight="700">EYES</text>
+      <text x="420" y="402" text-anchor="middle" font-family="Microsoft YaHei, Arial" font-size="14">眼睛</text>
+      <circle cx="420" cy="480" r="70" fill="#FF6B2C" />
+      <circle cx="420" cy="462" r="16" fill="#FF8A4C"/>
+      <circle cx="415" cy="460" r="2.2" fill="#222"/>
+      <circle cx="425" cy="460" r="2.2" fill="#222"/>
+      <circle cx="420" cy="465" r="2.5" fill="#E74C3C"/>
+      <rect x="402" y="478" width="36" height="34" rx="8" fill="#3A6EA5"/>
+      <ellipse cx="406" cy="532" rx="9" ry="5" fill="#E74C3C"/>
+      <ellipse cx="434" cy="532" rx="9" ry="5" fill="#E74C3C"/>
+    
+
+      <text x="600" y="382" text-anchor="middle" font-family="Arial" font-size="18" font-weight="700">EARS</text>
+      <text x="600" y="402" text-anchor="middle" font-family="Microsoft YaHei, Arial" font-size="14">耳朵</text>
+      <circle cx="600" cy="480" r="70" fill="#FF5FA2" />
+      <circle cx="600" cy="462" r="16" fill="#FF8A4C"/>
+      <circle cx="595" cy="460" r="2.2" fill="#222"/>
+      <circle cx="605" cy="460" r="2.2" fill="#222"/>
+      <circle cx="600" cy="465" r="2.5" fill="#E74C3C"/>
+      <rect x="582" y="478" width="36" height="34" rx="8" fill="#3A6EA5"/>
+      <ellipse cx="586" cy="532" rx="9" ry="5" fill="#E74C3C"/>
+      <ellipse cx="614" cy="532" rx="9" ry="5" fill="#E74C3C"/>
+    
+
+      <text x="780" y="382" text-anchor="middle" font-family="Arial" font-size="18" font-weight="700">MOUTH</text>
+      <text x="780" y="402" text-anchor="middle" font-family="Microsoft YaHei, Arial" font-size="14">嘴巴</text>
+      <circle cx="780" cy="480" r="70" fill="#6B3FA0" />
+      <circle cx="780" cy="462" r="16" fill="#FF8A4C"/>
+      <circle cx="775" cy="460" r="2.2" fill="#222"/>
+      <circle cx="785" cy="460" r="2.2" fill="#222"/>
+      <circle cx="780" cy="465" r="2.5" fill="#E74C3C"/>
+      <rect x="762" y="478" width="36" height="34" rx="8" fill="#3A6EA5"/>
+      <ellipse cx="766" cy="532" rx="9" ry="5" fill="#E74C3C"/>
+      <ellipse cx="794" cy="532" rx="9" ry="5" fill="#E74C3C"/>
+    
+
+      <text x="960" y="382" text-anchor="middle" font-family="Arial" font-size="18" font-weight="700">NOSE</text>
+      <text x="960" y="402" text-anchor="middle" font-family="Microsoft YaHei, Arial" font-size="14">鼻子</text>
+      <circle cx="960" cy="480" r="70" fill="#1DB8A6" />
+      <circle cx="960" cy="462" r="16" fill="#FF8A4C"/>
+      <circle cx="955" cy="460" r="2.2" fill="#222"/>
+      <circle cx="965" cy="460" r="2.2" fill="#222"/>
+      <circle cx="960" cy="465" r="2.5" fill="#E74C3C"/>
+      <rect x="942" y="478" width="36" height="34" rx="8" fill="#3A6EA5"/>
+      <ellipse cx="946" cy="532" rx="9" ry="5" fill="#E74C3C"/>
+      <ellipse cx="974" cy="532" rx="9" ry="5" fill="#E74C3C"/>
+    
+  <text x="1176" y="880" text-anchor="end" font-size="12" fill="#999">歌绘 · 自测样图</text>
+</svg>

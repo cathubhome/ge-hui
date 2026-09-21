@@ -1,0 +1,48 @@
+{
+  "titleEn": "HEAD, SHOULDERS, KNEES & TOES",
+  "titleZh": "头 · 肩膀 · 膝盖 · 脚趾",
+  "lyricExcerpt": "Head, shoulders, knees and toes\nAnd eyes and ears and mouth and nose\n头，肩膀，膝盖，脚趾\n眼睛，耳朵，嘴巴，鼻子",
+  "instructionZh": "边唱边指一指，摸一摸！",
+  "panels": [
+    {
+      "labelEn": "HEAD",
+      "labelZh": "头",
+      "action": "双手放在头顶"
+    },
+    {
+      "labelEn": "SHOULDERS",
+      "labelZh": "肩膀",
+      "action": "双手放到肩膀"
+    },
+    {
+      "labelEn": "KNEES",
+      "labelZh": "膝盖",
+      "action": "弯腰摸膝盖"
+    },
+    {
+      "labelEn": "TOES",
+      "labelZh": "脚趾",
+      "action": "低头摸脚趾"
+    },
+    {
+      "labelEn": "EYES",
+      "labelZh": "眼睛",
+      "action": "指向眼睛"
+    },
+    {
+      "labelEn": "EARS",
+      "labelZh": "耳朵",
+      "action": "指向耳朵"
+    },
+    {
+      "labelEn": "MOUTH",
+      "labelZh": "嘴巴",
+      "action": "双手放在嘴边"
+    },
+    {
+      "labelEn": "NOSE",
+      "labelZh": "鼻子",
+      "action": "指向鼻子"
+    }
+  ]
+}
