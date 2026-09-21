@@ -306,6 +306,16 @@ export default function HomePage() {
     return () => window.clearInterval(timer);
   }, [step]);
 
+  // Tip modal: Esc to close; never leave an invisible blocker.
+  useEffect(() => {
+    if (!showTip) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setShowTip(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [showTip]);
+
   async function onPickFile(file: File | null) {
     if (!file) return;
     if (jobBusy) return;
@@ -432,7 +442,20 @@ export default function HomePage() {
   }
 
   function tryDemoSong() {
-    if (jobBusy) return;
+    // Demo must always work — clear any stuck generating state first.
+    stopPoll();
+    try {
+      localStorage.removeItem(JOB_LS_KEY);
+    } catch {
+      /* ignore */
+    }
+    setJobId(null);
+    setJobStatus("");
+    setStep("idle");
+    setProgressLabel("");
+    setImageDataUrl("");
+    setPlan(null);
+    setShowTip(false);
     setSongTitle(DEMO_SONG_TITLE);
     setLyrics(DEMO_LYRICS);
     setError("");
@@ -529,8 +552,7 @@ export default function HomePage() {
           <button
             type="button"
             onClick={tryDemoSong}
-            disabled={jobBusy}
-            className="shrink-0 rounded-2xl border border-[#ff6b2c]/40 bg-[#fff4ee] px-4 py-2.5 text-sm font-semibold text-[#c2410c] transition hover:bg-[#ffe8da] disabled:opacity-50 sm:self-center"
+            className="shrink-0 rounded-2xl border border-[#ff6b2c]/40 bg-[#fff4ee] px-4 py-2.5 text-sm font-semibold text-[#c2410c] transition hover:bg-[#ffe8da] sm:self-center"
           >
             用这首歌试一试
           </button>
@@ -848,44 +870,48 @@ export default function HomePage() {
         <p>适合睡前、英语角，或打印贴在墙上一起唱。</p>
       </footer>
 
-      {/* 摆法1：右下角悬浮奶茶钮 */}
-      <button
-        type="button"
-        onClick={() => setShowTip(true)}
-        className="fixed bottom-5 right-5 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-[#ff6b2c] text-2xl shadow-lg shadow-orange-300/50 transition hover:scale-105 hover:bg-[#ef5a1a] focus:outline-none focus:ring-2 focus:ring-[#ff6b2c]/50 sm:bottom-8 sm:right-8"
-        aria-label="请杯奶茶"
-        title="请杯奶茶"
-      >
-        <span aria-hidden>🧋</span>
-      </button>
-      {showTip ? (
-        <div
-          className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-4 sm:items-center"
-          role="dialog"
-          aria-modal="true"
+      {/* 摆法1：右下角悬浮奶茶钮（不挡主流程） */}
+      {!showTip ? (
+        <button
+          type="button"
+          onClick={() => setShowTip(true)}
+          className="fixed bottom-5 right-5 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-[#ff6b2c] text-2xl shadow-lg shadow-orange-300/40 transition hover:scale-105 hover:bg-[#ef5a1a] focus:outline-none focus:ring-2 focus:ring-[#ff6b2c]/50 sm:bottom-8 sm:right-8"
           aria-label="请杯奶茶"
-          onClick={() => setShowTip(false)}
+          title="请杯奶茶"
         >
+          <span aria-hidden>🧋</span>
+        </button>
+      ) : null}
+      {showTip ? (
+        <div className="fixed inset-0 z-[100] flex items-end justify-center p-4 sm:items-center">
+          <button
+            type="button"
+            className="absolute inset-0 bg-black/45"
+            aria-label="关闭打赏"
+            onClick={() => setShowTip(false)}
+          />
           <div
-            className="relative max-h-[90vh] w-full max-w-sm overflow-y-auto rounded-3xl border-2 border-[#ff6b2c]/40 bg-[#fffdf8] p-4 shadow-xl"
-            onClick={(e) => e.stopPropagation()}
+            className="relative z-10 max-h-[85vh] w-full max-w-sm overflow-y-auto rounded-3xl border-2 border-[#ff6b2c]/40 bg-[#fffdf8] p-4 shadow-xl"
+            role="dialog"
+            aria-modal="true"
+            aria-label="请杯奶茶"
           >
             <button
               type="button"
-              className="absolute right-3 top-3 rounded-full bg-[#f0e6d4] px-2.5 py-1 text-xs text-neutral-600"
+              className="absolute right-3 top-3 z-20 rounded-full bg-[#f0e6d4] px-3 py-1.5 text-xs font-medium text-neutral-700"
               onClick={() => setShowTip(false)}
             >
               关闭
             </button>
-            <p className="pr-12 text-center font-display text-lg text-neutral-800">请杯奶茶</p>
+            <p className="pr-14 text-center font-display text-lg text-neutral-800">请杯奶茶</p>
             <p className="mt-1 text-center text-xs text-neutral-500">
-              喜欢歌绘就好 · 扫一扫自愿打赏
+              喜欢歌绘就好 · 扫一扫自愿打赏 · Esc 也可关闭
             </p>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src="/samples/ge-hui-tip-card.png"
               alt="请杯奶茶打赏码"
-              className="mx-auto mt-3 w-full max-w-[280px] rounded-2xl"
+              className="mx-auto mt-3 w-full max-w-[260px] rounded-2xl"
             />
             {imageDataUrl ? (
               <button
@@ -893,10 +919,12 @@ export default function HomePage() {
                 className="mt-3 w-full text-center text-xs font-medium text-[#ff6b2c] underline-offset-2 hover:underline"
                 onClick={() => {
                   setShowTip(false);
-                  document.getElementById("ge-hui-tip")?.scrollIntoView({
-                    behavior: "smooth",
-                    block: "center",
-                  });
+                  window.setTimeout(() => {
+                    document.getElementById("ge-hui-tip")?.scrollIntoView({
+                      behavior: "smooth",
+                      block: "center",
+                    });
+                  }, 50);
                 }}
               >
                 也可看结果区下方的码
