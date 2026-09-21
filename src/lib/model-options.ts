@@ -25,30 +25,15 @@ function prettyLabel(id: string): string {
 /** Higher = better / prefer earlier within a family. Unknown ids get 0. */
 const CHAT_RANK: Record<string, number> = {
   "gemini-3.8-flash-high": 100,
-  "gemini-3.7-flash-high": 92,
-  "gemini-3.6-flash-high": 86,
-  "gemini-3.1-pro-low": 80,
-  "gemini-3.5-flash-lite": 74,
-  "gemini-3.1-flash-lite": 68,
-  "gemini-3-flash": 62,
-  "gemini-pro-agent": 56,
-  "gpt-6-astra": 100,
-  "gpt-5.6-sol": 94,
-  "gpt-5.6-terra": 92,
-  "gpt-5.6-luna": 90,
-  "gpt-5.5": 84,
+  "gemini-3.1-pro-low": 90,
+  "gpt-5.6-sol": 100,
+  "gpt-5.6-terra": 90,
   "glm-5.3": 100,
-  "glm-5.2": 90,
   "grok-4.6": 100,
-  "grok-4.5": 94,
-  "grok-4.3": 88,
-  "grok-4.20-0309-reasoning": 76,
-  "grok-4.20-multi-agent-0309": 74,
-  "grok-4.20-0309-non-reasoning": 70,
-  "grok-composer-2.5-fast": 60,
-  "grok-3-mini-fast": 40,
-  "grok-3-mini": 38,
 };
+
+/** Listening / scene-planning models shown in Advanced settings. */
+export const CHAT_ALLOWLIST = Object.keys(CHAT_RANK);
 
 const IMAGE_RANK: Record<string, number> = {
   "gpt-image-2.5-sunburst": 100,
@@ -63,14 +48,7 @@ const IMAGE_RANK: Record<string, number> = {
 };
 
 export function isChatCapable(id: string): boolean {
-  const s = id.toLowerCase();
-  if (detectFamily(s) === "other") return false;
-  if (s.includes("image") || s.includes("video") || s.includes("imagine")) return false;
-  if (s.includes("codex") || s.includes("openrouter") || s.includes("oss")) return false;
-  if (s.includes("build-")) return false;
-  // Claude intentionally excluded from product family order
-  if (s.includes("claude")) return false;
-  return true;
+  return CHAT_ALLOWLIST.includes(id);
 }
 
 export function isImageCapable(id: string): boolean {
@@ -111,7 +89,7 @@ export function pickDefault(ids: string[], preferred?: string): string {
 }
 
 /** Curated seed list — only shown when also present in live /models. */
-export const CHAT_MODEL_CANDIDATES = Object.keys(CHAT_RANK);
+export const CHAT_MODEL_CANDIDATES = CHAT_ALLOWLIST;
 export const IMAGE_MODEL_CANDIDATES = Object.keys(IMAGE_RANK);
 
 export const FREE_TRANSCRIBE_SITES = [
