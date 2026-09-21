@@ -805,13 +805,6 @@ export default function HomePage() {
                   >
                     再画一张
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => setShowTip(true)}
-                    className="rounded-xl border border-[#ff6b2c]/35 bg-[#fff4ee] px-4 py-2.5 text-sm font-medium text-[#c2410c]"
-                  >
-                    请杯奶茶
-                  </button>
                 </div>
                 {plan ? (
                   <details className="rounded-xl border border-[#f0e6d4] bg-[#fffdf8] px-3 py-2 text-xs text-neutral-600">
@@ -823,6 +816,21 @@ export default function HomePage() {
                     </pre>
                   </details>
                 ) : null}
+                <div
+                  id="ge-hui-tip"
+                  className="mt-4 rounded-2xl border-2 border-[#ff6b2c]/30 bg-[#fff4ee]/70 p-3 text-center"
+                >
+                  <p className="font-display text-base text-neutral-800">喜欢这页？请杯奶茶支持一下～</p>
+                  <p className="mt-1 text-[11px] text-neutral-500">
+                    自愿打赏 · 码中间头像是微信自带的
+                  </p>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src="/samples/ge-hui-tip-card.png"
+                    alt="请杯奶茶打赏码"
+                    className="mx-auto mt-3 w-full max-w-[260px] rounded-2xl shadow-sm"
+                  />
+                </div>
               </div>
             ) : null}
 
@@ -835,32 +843,68 @@ export default function HomePage() {
         </aside>
       </div>
 
-      <footer className="mt-10 space-y-3 text-center text-xs text-neutral-400">
+      <footer className="mt-10 space-y-1 text-center text-xs text-neutral-400">
         <p>歌绘 · 一页启蒙绘本</p>
         <p>适合睡前、英语角，或打印贴在墙上一起唱。</p>
-        <button
-          type="button"
-          onClick={() => setShowTip((v) => !v)}
-          className="mx-auto inline-flex items-center gap-1 rounded-full border border-[#ff6b2c]/30 bg-[#fff4ee] px-4 py-2 text-xs font-semibold text-[#c2410c] transition hover:bg-[#ffe8da]"
+      </footer>
+
+      {/* 摆法1：右下角悬浮奶茶钮 */}
+      <button
+        type="button"
+        onClick={() => setShowTip(true)}
+        className="fixed bottom-5 right-5 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-[#ff6b2c] text-2xl shadow-lg shadow-orange-300/50 transition hover:scale-105 hover:bg-[#ef5a1a] focus:outline-none focus:ring-2 focus:ring-[#ff6b2c]/50 sm:bottom-8 sm:right-8"
+        aria-label="请杯奶茶"
+        title="请杯奶茶"
+      >
+        <span aria-hidden>🧋</span>
+      </button>
+      {showTip ? (
+        <div
+          className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-4 sm:items-center"
+          role="dialog"
+          aria-modal="true"
+          aria-label="请杯奶茶"
+          onClick={() => setShowTip(false)}
         >
-          <span aria-hidden>🧋</span>
-          {showTip ? "收起奶茶码" : "喜欢歌绘？请杯奶茶"}
-        </button>
-        {showTip ? (
-          <div className="mx-auto mt-2 max-w-sm overflow-hidden rounded-3xl border-2 border-[#ff6b2c]/35 bg-[#fffdf8] p-3 shadow-sm">
-            <p className="mb-2 font-display text-base text-neutral-800">请杯奶茶</p>
-            <p className="mb-3 text-[11px] leading-relaxed text-neutral-500">
-              码的中间头像是微信自带的，四周没有额外遮挡，扫一扫就能打赏～
+          <div
+            className="relative max-h-[90vh] w-full max-w-sm overflow-y-auto rounded-3xl border-2 border-[#ff6b2c]/40 bg-[#fffdf8] p-4 shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              type="button"
+              className="absolute right-3 top-3 rounded-full bg-[#f0e6d4] px-2.5 py-1 text-xs text-neutral-600"
+              onClick={() => setShowTip(false)}
+            >
+              关闭
+            </button>
+            <p className="pr-12 text-center font-display text-lg text-neutral-800">请杯奶茶</p>
+            <p className="mt-1 text-center text-xs text-neutral-500">
+              喜欢歌绘就好 · 扫一扫自愿打赏
             </p>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src="/samples/ge-hui-tip-card.png"
               alt="请杯奶茶打赏码"
-              className="mx-auto w-full max-w-[280px] rounded-2xl"
+              className="mx-auto mt-3 w-full max-w-[280px] rounded-2xl"
             />
+            {imageDataUrl ? (
+              <button
+                type="button"
+                className="mt-3 w-full text-center text-xs font-medium text-[#ff6b2c] underline-offset-2 hover:underline"
+                onClick={() => {
+                  setShowTip(false);
+                  document.getElementById("ge-hui-tip")?.scrollIntoView({
+                    behavior: "smooth",
+                    block: "center",
+                  });
+                }}
+              >
+                也可看结果区下方的码
+              </button>
+            ) : null}
           </div>
-        ) : null}
-      </footer>
+        </div>
+      ) : null}
     </main>
   );
 }
