@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { PDFParse } from "pdf-parse";
 import { cpaFetch, getCpaApiKey, chatModels } from "@/lib/cpa";
 import { rasterizePdfPages } from "@/lib/pdf-rasterize";
+import { rasterizeViaScript } from "@/lib/pdf-rasterize-script";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -171,16 +172,24 @@ export async function POST(req: NextRequest) {
     // Vision path: image-only / scanned picture books
     let rasters;
     try {
-      rasters = await rasterizePdfPages(new Uint8Array(buf), {
-        maxPages: 8,
-        maxEdge: 960,
-      });
-    } catch {
+      try {
+        rasters = await rasterizeViaScript(new Uint8Array(buf));
+      } catch (scriptErr) {
+        console.error("[extract-pdf] script rasterize failed", scriptErr);
+        rasters = await rasterizePdfPages(new Uint8Array(buf), {
+          maxPages: 8,
+          maxEdge: 960,
+        });
+      }
+    } catch (rasterErr) {
+      const detail = rasterErr instanceof Error ? rasterErr.message : String(rasterErr);
+      console.error("[extract-pdf] rasterize failed", detail);
       return NextResponse.json(
         {
           error:
             "这份 PDF 更像图文绘本，翻页成图片时没成功。请把歌词粘贴到下面，或换一份带可选文字的 PDF～",
           code: "pdf_rasterize_failed",
+            detail,
           pages,
           extractedChars: signal,
         },
