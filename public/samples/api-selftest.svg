@@ -1,0 +1,178 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="900" viewBox="0 0 1200 900">
+  <defs>
+    <linearGradient id="hill1" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#B8E0F0"/>
+      <stop offset="100%" stop-color="#7EC8E3"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="900" fill="#F7F3E8"/>
+  <ellipse cx="200" cy="820" rx="520" ry="160" fill="#A8D5E5" opacity="0.9"/>
+  <ellipse cx="700" cy="860" rx="480" ry="140" fill="#F5D76E" opacity="0.85"/>
+  <ellipse cx="1050" cy="800" rx="360" ry="150" fill="#7BC8B8" opacity="0.8"/>
+
+  <text x="40" y="56" font-family="Arial Black, Arial, sans-serif" font-size="28" font-weight="900" fill="#1a1a1a">HEAD, SHOULDERS, KNEES AND TOES, KNEES AND TOES</text>
+  <text x="40" y="88" font-family="Arial, 'PingFang SC', 'Microsoft YaHei', sans-serif" font-size="20" fill="#333">Ã¦Â­ÂÃ¦ÂÂ²Ã§Â»ÂÃ¦ÂÂ¬</text>
+
+  <rect x="32" y="120" width="340" height="320" rx="18" fill="#fff" stroke="#e5e5e5"/>
+  <text x="48" y="152" font-family="Arial Black, Arial, sans-serif" font-size="16" fill="#222">SING &amp; MOVE</text>
+  <text x="48" y="190" font-family="Arial, 'PingFang SC', 'Microsoft YaHei', sans-serif" font-size="15" fill="#333">
+    <tspan x="48" dy="0">Head, shoulders, knees and toes, knees and toes</tspan><tspan x="48" dy="22">And eyes and ears and mouth and nose</tspan><tspan x="48" dy="22">Ã¥Â¤Â´Ã¯Â¼ÂÃ¨ÂÂ©Ã¨ÂÂÃ¯Â¼ÂÃ¨ÂÂÃ§ÂÂÃ¯Â¼ÂÃ¨ÂÂÃ¨Â¶Â¾</tspan><tspan x="48" dy="22">Ã§ÂÂ¼Ã§ÂÂÃ¯Â¼ÂÃ¨ÂÂ³Ã¦ÂÂµÃ¯Â¼ÂÃ¥ÂÂ´Ã¥Â·Â´Ã¯Â¼ÂÃ©Â¼Â»Ã¥Â­Â</tspan>
+  </text>
+  <text x="48" y="410" font-family="Arial, 'PingFang SC', 'Microsoft YaHei', sans-serif" font-size="14" fill="#666">Ã¨Â¾Â¹Ã¥ÂÂ±Ã¨Â¾Â¹Ã¦ÂÂÃ¤Â¸ÂÃ¦ÂÂÃ¯Â¼ÂÃ¦ÂÂ¸Ã¤Â¸ÂÃ¦ÂÂ¸Ã¯Â¼Â</text>
+
+  
+      <text x="420" y="102" text-anchor="middle" font-family="Arial, sans-serif" font-size="18" font-weight="700" fill="#1a1a1a">HEAD</text>
+      <text x="420" y="122" text-anchor="middle" font-family="Arial, 'PingFang SC', 'Microsoft YaHei', sans-serif" font-size="14" fill="#444">Ã¥Â¤Â´</text>
+      <circle cx="420" cy="200" r="70" fill="#FF6B2C" />
+      
+    <circle cx="420" cy="182" r="16" fill="#FF8A4C"/>
+    <circle cx="415" cy="180" r="2.2" fill="#222"/>
+    <circle cx="425" cy="180" r="2.2" fill="#222"/>
+    <circle cx="420" cy="185" r="2.5" fill="#E74C3C"/>
+    <path d="M 414 190 Q 420 196 426 190" fill="none" stroke="#222" stroke-width="2" stroke-linecap="round"/>
+    <rect x="402" y="198" width="36" height="34" rx="8" fill="#3A6EA5"/>
+    <path d="M 398 205 L 382 220" stroke="#FF8A4C" stroke-width="7" stroke-linecap="round" fill="none"/>
+    <path d="M 442 205 L 458 220" stroke="#FF8A4C" stroke-width="7" stroke-linecap="round" fill="none"/>
+    <path d="M 410 230 L 406 248" stroke="#FF8A4C" stroke-width="7" stroke-linecap="round"/>
+    <path d="M 430 230 L 434 248" stroke="#FF8A4C" stroke-width="7" stroke-linecap="round"/>
+    <ellipse cx="406" cy="252" rx="9" ry="5" fill="#E74C3C"/>
+    <ellipse cx="434" cy="252" rx="9" ry="5" fill="#E74C3C"/>
+  
+      
+
+      <text x="600" y="102" text-anchor="middle" font-family="Arial, sans-serif" font-size="18" font-weight="700" fill="#1a1a1a">SHOULDERS</text>
+      <text x="600" y="122" text-anchor="middle" font-family="Arial, 'PingFang SC', 'Microsoft YaHei', sans-serif" font-size="14" fill="#444">Ã¨ÂÂ©Ã¨ÂÂ</text>
+      <circle cx="600" cy="200" r="70" fill="#FF5FA2" />
+      
+    <circle cx="600" cy="182" r="16" fill="#FF8A4C"/>
+    <circle cx="595" cy="180" r="2.2" fill="#222"/>
+    <circle cx="605" cy="180" r="2.2" fill="#222"/>
+    <circle cx="600" cy="185" r="2.5" fill="#E74C3C"/>
+    <path d="M 594 190 Q 600 196 606 190" fill="none" stroke="#222" stroke-width="2" stroke-linecap="round"/>
+    <rect x="582" y="198" width="36" height="34" rx="8" fill="#3A6EA5"/>
+    <path d="M 578 205 L 562 220" stroke="#FF8A4C" stroke-width="7" stroke-linecap="round" fill="none"/>
+    <path d="M 622 205 L 638 220" stroke="#FF8A4C" stroke-width="7" stroke-linecap="round" fill="none"/>
+    <path d="M 590 230 L 586 248" stroke="#FF8A4C" stroke-width="7" stroke-linecap="round"/>
+    <path d="M 610 230 L 614 248" stroke="#FF8A4C" stroke-width="7" stroke-linecap="round"/>
+    <ellipse cx="586" cy="252" rx="9" ry="5" fill="#E74C3C"/>
+    <ellipse cx="614" cy="252" rx="9" ry="5" fill="#E74C3C"/>
+  
+      
+
+      <text x="780" y="102" text-anchor="middle" font-family="Arial, sans-serif" font-size="18" font-weight="700" fill="#1a1a1a">KNEES</text>
+      <text x="780" y="122" text-anchor="middle" font-family="Arial, 'PingFang SC', 'Microsoft YaHei', sans-serif" font-size="14" fill="#444">Ã¨ÂÂÃ§ÂÂ</text>
+      <circle cx="780" cy="200" r="70" fill="#6B3FA0" />
+      
+    <circle cx="780" cy="182" r="16" fill="#FF8A4C"/>
+    <circle cx="775" cy="180" r="2.2" fill="#222"/>
+    <circle cx="785" cy="180" r="2.2" fill="#222"/>
+    <circle cx="780" cy="185" r="2.5" fill="#E74C3C"/>
+    <path d="M 774 190 Q 780 196 786 190" fill="none" stroke="#222" stroke-width="2" stroke-linecap="round"/>
+    <rect x="762" y="198" width="36" height="34" rx="8" fill="#3A6EA5"/>
+    <path d="M 758 205 L 742 220" stroke="#FF8A4C" stroke-width="7" stroke-linecap="round" fill="none"/>
+    <path d="M 802 205 L 818 220" stroke="#FF8A4C" stroke-width="7" stroke-linecap="round" fill="none"/>
+    <path d="M 770 230 L 766 248" stroke="#FF8A4C" stroke-width="7" stroke-linecap="round"/>
+    <path d="M 790 230 L 794 248" stroke="#FF8A4C" stroke-width="7" stroke-linecap="round"/>
+    <ellipse cx="766" cy="252" rx="9" ry="5" fill="#E74C3C"/>
+    <ellipse cx="794" cy="252" rx="9" ry="5" fill="#E74C3C"/>
+  
+      
+
+      <text x="960" y="102" text-anchor="middle" font-family="Arial, sans-serif" font-size="18" font-weight="700" fill="#1a1a1a">TOES</text>
+      <text x="960" y="122" text-anchor="middle" font-family="Arial, 'PingFang SC', 'Microsoft YaHei', sans-serif" font-size="14" fill="#444">Ã¨ÂÂÃ¨Â¶Â¾</text>
+      <circle cx="960" cy="200" r="70" fill="#1DB8A6" />
+      
+    <circle cx="960" cy="182" r="16" fill="#FF8A4C"/>
+    <circle cx="955" cy="180" r="2.2" fill="#222"/>
+    <circle cx="965" cy="180" r="2.2" fill="#222"/>
+    <circle cx="960" cy="185" r="2.5" fill="#E74C3C"/>
+    <path d="M 954 190 Q 960 196 966 190" fill="none" stroke="#222" stroke-width="2" stroke-linecap="round"/>
+    <rect x="942" y="198" width="36" height="34" rx="8" fill="#3A6EA5"/>
+    <path d="M 938 205 L 922 220" stroke="#FF8A4C" stroke-width="7" stroke-linecap="round" fill="none"/>
+    <path d="M 982 205 L 998 220" stroke="#FF8A4C" stroke-width="7" stroke-linecap="round" fill="none"/>
+    <path d="M 950 230 L 946 248" stroke="#FF8A4C" stroke-width="7" stroke-linecap="round"/>
+    <path d="M 970 230 L 974 248" stroke="#FF8A4C" stroke-width="7" stroke-linecap="round"/>
+    <ellipse cx="946" cy="252" rx="9" ry="5" fill="#E74C3C"/>
+    <ellipse cx="974" cy="252" rx="9" ry="5" fill="#E74C3C"/>
+  
+      
+
+      <text x="420" y="382" text-anchor="middle" font-family="Arial, sans-serif" font-size="18" font-weight="700" fill="#1a1a1a">EYES</text>
+      <text x="420" y="402" text-anchor="middle" font-family="Arial, 'PingFang SC', 'Microsoft YaHei', sans-serif" font-size="14" fill="#444">Ã§ÂÂ¼Ã§ÂÂ</text>
+      <circle cx="420" cy="480" r="70" fill="#FF6B2C" />
+      
+    <circle cx="420" cy="462" r="16" fill="#FF8A4C"/>
+    <circle cx="415" cy="460" r="2.2" fill="#222"/>
+    <circle cx="425" cy="460" r="2.2" fill="#222"/>
+    <circle cx="420" cy="465" r="2.5" fill="#E74C3C"/>
+    <path d="M 414 470 Q 420 476 426 470" fill="none" stroke="#222" stroke-width="2" stroke-linecap="round"/>
+    <rect x="402" y="478" width="36" height="34" rx="8" fill="#3A6EA5"/>
+    <path d="M 398 485 L 382 500" stroke="#FF8A4C" stroke-width="7" stroke-linecap="round" fill="none"/>
+    <path d="M 442 485 L 458 500" stroke="#FF8A4C" stroke-width="7" stroke-linecap="round" fill="none"/>
+    <path d="M 410 510 L 406 528" stroke="#FF8A4C" stroke-width="7" stroke-linecap="round"/>
+    <path d="M 430 510 L 434 528" stroke="#FF8A4C" stroke-width="7" stroke-linecap="round"/>
+    <ellipse cx="406" cy="532" rx="9" ry="5" fill="#E74C3C"/>
+    <ellipse cx="434" cy="532" rx="9" ry="5" fill="#E74C3C"/>
+  
+      
+
+      <text x="600" y="382" text-anchor="middle" font-family="Arial, sans-serif" font-size="18" font-weight="700" fill="#1a1a1a">EARS</text>
+      <text x="600" y="402" text-anchor="middle" font-family="Arial, 'PingFang SC', 'Microsoft YaHei', sans-serif" font-size="14" fill="#444">Ã¨ÂÂ³Ã¦ÂÂµ</text>
+      <circle cx="600" cy="480" r="70" fill="#FF5FA2" />
+      
+    <circle cx="600" cy="462" r="16" fill="#FF8A4C"/>
+    <circle cx="595" cy="460" r="2.2" fill="#222"/>
+    <circle cx="605" cy="460" r="2.2" fill="#222"/>
+    <circle cx="600" cy="465" r="2.5" fill="#E74C3C"/>
+    <path d="M 594 470 Q 600 476 606 470" fill="none" stroke="#222" stroke-width="2" stroke-linecap="round"/>
+    <rect x="582" y="478" width="36" height="34" rx="8" fill="#3A6EA5"/>
+    <path d="M 578 485 L 562 500" stroke="#FF8A4C" stroke-width="7" stroke-linecap="round" fill="none"/>
+    <path d="M 622 485 L 638 500" stroke="#FF8A4C" stroke-width="7" stroke-linecap="round" fill="none"/>
+    <path d="M 590 510 L 586 528" stroke="#FF8A4C" stroke-width="7" stroke-linecap="round"/>
+    <path d="M 610 510 L 614 528" stroke="#FF8A4C" stroke-width="7" stroke-linecap="round"/>
+    <ellipse cx="586" cy="532" rx="9" ry="5" fill="#E74C3C"/>
+    <ellipse cx="614" cy="532" rx="9" ry="5" fill="#E74C3C"/>
+  
+      
+
+      <text x="780" y="382" text-anchor="middle" font-family="Arial, sans-serif" font-size="18" font-weight="700" fill="#1a1a1a">MOUTH</text>
+      <text x="780" y="402" text-anchor="middle" font-family="Arial, 'PingFang SC', 'Microsoft YaHei', sans-serif" font-size="14" fill="#444">Ã¥ÂÂ´Ã¥Â·Â´</text>
+      <circle cx="780" cy="480" r="70" fill="#6B3FA0" />
+      
+    <circle cx="780" cy="462" r="16" fill="#FF8A4C"/>
+    <circle cx="775" cy="460" r="2.2" fill="#222"/>
+    <circle cx="785" cy="460" r="2.2" fill="#222"/>
+    <circle cx="780" cy="465" r="2.5" fill="#E74C3C"/>
+    <path d="M 774 470 Q 780 476 786 470" fill="none" stroke="#222" stroke-width="2" stroke-linecap="round"/>
+    <rect x="762" y="478" width="36" height="34" rx="8" fill="#3A6EA5"/>
+    <path d="M 758 485 L 742 500" stroke="#FF8A4C" stroke-width="7" stroke-linecap="round" fill="none"/>
+    <path d="M 802 485 L 818 500" stroke="#FF8A4C" stroke-width="7" stroke-linecap="round" fill="none"/>
+    <path d="M 770 510 L 766 528" stroke="#FF8A4C" stroke-width="7" stroke-linecap="round"/>
+    <path d="M 790 510 L 794 528" stroke="#FF8A4C" stroke-width="7" stroke-linecap="round"/>
+    <ellipse cx="766" cy="532" rx="9" ry="5" fill="#E74C3C"/>
+    <ellipse cx="794" cy="532" rx="9" ry="5" fill="#E74C3C"/>
+  
+      
+
+      <text x="960" y="382" text-anchor="middle" font-family="Arial, sans-serif" font-size="18" font-weight="700" fill="#1a1a1a">NOSE</text>
+      <text x="960" y="402" text-anchor="middle" font-family="Arial, 'PingFang SC', 'Microsoft YaHei', sans-serif" font-size="14" fill="#444">Ã©Â¼Â»Ã¥Â­Â</text>
+      <circle cx="960" cy="480" r="70" fill="#1DB8A6" />
+      
+    <circle cx="960" cy="462" r="16" fill="#FF8A4C"/>
+    <circle cx="955" cy="460" r="2.2" fill="#222"/>
+    <circle cx="965" cy="460" r="2.2" fill="#222"/>
+    <circle cx="960" cy="465" r="2.5" fill="#E74C3C"/>
+    <path d="M 954 470 Q 960 476 966 470" fill="none" stroke="#222" stroke-width="2" stroke-linecap="round"/>
+    <rect x="942" y="478" width="36" height="34" rx="8" fill="#3A6EA5"/>
+    <path d="M 938 485 L 922 500" stroke="#FF8A4C" stroke-width="7" stroke-linecap="round" fill="none"/>
+    <path d="M 982 485 L 998 500" stroke="#FF8A4C" stroke-width="7" stroke-linecap="round" fill="none"/>
+    <path d="M 950 510 L 946 528" stroke="#FF8A4C" stroke-width="7" stroke-linecap="round"/>
+    <path d="M 970 510 L 974 528" stroke="#FF8A4C" stroke-width="7" stroke-linecap="round"/>
+    <ellipse cx="946" cy="532" rx="9" ry="5" fill="#E74C3C"/>
+    <ellipse cx="974" cy="532" rx="9" ry="5" fill="#E74C3C"/>
+  
+      
+
+  <text x="1176" y="880" text-anchor="end" font-family="Arial, 'PingFang SC', sans-serif" font-size="12" fill="#999">æ­ç» Â· ç«¥è¶£ç»æ¬é¡µ</text>
+</svg>
