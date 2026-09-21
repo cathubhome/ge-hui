@@ -1,16 +1,31 @@
 import { cpaFetch, getCpaApiKey, chatModels } from "@/lib/cpa";
-import { rasterizePdfPages } from "@/lib/pdf-rasterize";
+import { inspectPdfPages, readPdfPageCount } from "@/lib/pdf-rasterize";
 import { contentSignal } from "@/lib/pdf-text";
+import {
+  pickPictureBookPages,
+  pickReferencePages,
+  roleLabel,
+  type PictureBookPick,
+} from "@/lib/picture-book-pages";
 
 export type VisionExtract = {
   text: string;
   characterDescription: string;
   styleNotes?: string;
   titleHint?: string;
+  sceneLayout?: string;
+  cast?: string[];
   referenceImageDataUrls: string[];
 };
 
-function parseVisionJson(raw: string): Omit<VisionExtract, "referenceImageDataUrls"> | null {
+type LabeledPage = PictureBookPick & {
+  dataUrl: string;
+  totalPages: number;
+};
+
+function parseVisionJson(
+  raw: string,
+): Omit<VisionExtract, "referenceImageDataUrls"> | null {
   const cleaned = raw
     .replace(/^```json\s*/i, "")
     .replace(/^```\s*/i, "")
@@ -23,13 +38,20 @@ function parseVisionJson(raw: string): Omit<VisionExtract, "referenceImageDataUr
       obj.characterDescription || obj.character || obj.mainCharacter || "",
     ).trim();
     if (!text || contentSignal(text) < 12) return null;
+    const cast = Array.isArray(obj.cast)
+      ? obj.cast.map((c) => String(c).trim()).filter(Boolean).slice(0, 12)
+      : [];
     return {
       text,
       characterDescription:
         characterDescription ||
-        "a cute friendly cartoon character from a children's picture book",
+        (cast.length
+          ? cast.join("; ")
+          : "cartoon animals from a children's picture book, gathered on one open spread"),
       styleNotes: String(obj.styleNotes || obj.style || "").trim() || undefined,
       titleHint: String(obj.titleHint || obj.title || "").trim() || undefined,
+      sceneLayout: String(obj.sceneLayout || obj.layout || "").trim() || undefined,
+      cast: cast.length ? cast : undefined,
     };
   } catch {
     return null;
@@ -37,7 +59,7 @@ function parseVisionJson(raw: string): Omit<VisionExtract, "referenceImageDataUr
 }
 
 async function visionExtractFromPages(
-  dataUrls: string[],
+  pages: LabeledPage[],
   chatModel?: string,
 ): Promise<Omit<VisionExtract, "referenceImageDataUrls">> {
   if (!getCpaApiKey()) {
@@ -52,22 +74,34 @@ async function visionExtractFromPages(
     chatModels()[0] ||
     "gemini-3.8-flash-high";
 
-  const prompt = `你是儿童英语启蒙绘本助手。下面是绘本 PDF 每一页的截图（按页序）。
-请仔细看图，提取：
-1) text：可见的歌词 / 故事正文（尽量保留原文语言与分行，去掉页码装饰）
-2) characterDescription：英文，详细描述主角色外观（物种/年龄感、肤色或毛色、发型/羽毛、服装颜色与款式、标志性道具），以便后续 AI 画「同一个角色」
-3) styleNotes：画面风格关键词（flat vector / watercolor / collage 等）
-4) titleHint：如果封面有歌名就写上
+  const total = pages[0]?.totalPages || pages.length;
+  const prompt = `你是儿童英语启蒙绘本助手。用户上传的是卡通绘本 PDF，不是纯文本歌词。
 
-只输出 JSON 对象，不要 markdown。字段：text, characterDescription, styleNotes, titleHint。`;
+页角色：
+- LYRICS（通常最后一页）是整首歌词：text 必须优先从这一页提取，保留原文语言和分行，去掉页码/出版社。
+- MAIN SPREAD（通常倒数第二页）是主图：可能是角色合页或游戏对白页。characterDescription 必须列出这一页上的每一个卡通角色（外形、颜色、服装/斑纹），不要只写一个主角。sceneLayout 描述谁在画面哪一侧、背景颜色、有没有对话框。
+- COVER/CAST（通常第一页）可能是人物合集，常有品牌 logo：只用来认角色和服装配色，忽略商标、网址、二维码、出版社字。
+- STORY 页只参考画风。不要把封面 logo 写进角色描述。禁止把绘本理解成八宫格练习纸。
+
+输出 JSON 对象，不要 markdown。字段：
+1) text：歌词全文（优先最后一页）
+2) characterDescription：英文，列出参考图上出现的每一个卡通角色
+3) cast：字符串数组，每个角色一条
+4) sceneLayout：英文，描述倒数第二页的构图（开放跨页，不是格子）
+5) styleNotes：原书画风与配色（如 flat vector, light blue background, simple animal shapes）
+6) titleHint：歌名（若能看见）`;
 
   const content: Array<
     | { type: "text"; text: string }
     | { type: "image_url"; image_url: { url: string } }
   > = [{ type: "text", text: prompt }];
 
-  for (const url of dataUrls.slice(0, 8)) {
-    content.push({ type: "image_url", image_url: { url } });
+  for (const p of pages) {
+    content.push({
+      type: "text",
+      text: roleLabel(p.role, p.page, p.totalPages || total),
+    });
+    content.push({ type: "image_url", image_url: { url: p.dataUrl } });
   }
 
   const res = await cpaFetch("/chat/completions", {
@@ -85,14 +119,14 @@ async function visionExtractFromPages(
     throw new Error("看图读词时服务有点忙，请稍后再试，或直接粘贴歌词～");
   }
 
-  const data = (await res.json()) as {
+  const data = await res.json() as {
     choices?: Array<{ message?: { content?: string } }>;
   };
   const raw = String(data.choices?.[0]?.message?.content || "").trim();
   const parsed = parseVisionJson(raw);
   if (!parsed) {
     throw new Error(
-      "看见图了，但没读清歌词。请把歌词粘贴到下面，我们也能画～",
+      "看见图了，但没读清最后一页的歌词。请把歌词粘贴到下面，我们也能画～",
     );
   }
   if (parsed.styleNotes) {
@@ -106,21 +140,40 @@ export async function visionExtractPdf(
   pdfBytes: Uint8Array | Buffer,
   chatModel?: string,
 ): Promise<VisionExtract> {
-  const rasters = await rasterizePdfPages(
+  const bytes =
     pdfBytes instanceof ArrayBuffer
       ? new Uint8Array(pdfBytes)
-      : Uint8Array.from(pdfBytes),
-    { maxPages: 8, maxEdge: 960 },
-  );
-  if (!rasters.length) {
+      : Uint8Array.from(pdfBytes);
+
+  const totalPages = await readPdfPageCount(bytes);
+  if (totalPages < 1) {
     throw new Error("这份 PDF 没有可读页面。请把歌词粘贴到下面试试～");
   }
-  const vision = await visionExtractFromPages(
-    rasters.map((r) => r.dataUrl),
-    chatModel,
-  );
-  const referenceImageDataUrls = rasters
-    .slice(0, Math.min(2, rasters.length))
-    .map((r) => r.dataUrl);
+
+  const picks = pickPictureBookPages(totalPages);
+  const { pages } = await inspectPdfPages(bytes, {
+    pageNumbers: picks.map((p) => p.page),
+    maxEdge: 960,
+  });
+  if (!pages.length) {
+    throw new Error("这份 PDF 没有可读页面。请把歌词粘贴到下面试试～");
+  }
+
+  const byPage = new Map(pages.map((p) => [p.page, p]));
+  const labeled: LabeledPage[] = picks
+    .map((pick) => {
+      const raster = byPage.get(pick.page);
+      if (!raster) return null;
+      return { ...pick, dataUrl: raster.dataUrl, totalPages };
+    })
+    .filter((p): p is LabeledPage => Boolean(p));
+
+  const vision = await visionExtractFromPages(labeled, chatModel);
+  const refPicks = pickReferencePages(picks);
+  const referenceImageDataUrls = refPicks
+    .map((pick) => byPage.get(pick.page)?.dataUrl)
+    .filter((u): u is string => Boolean(u))
+    .slice(0, 2);
+
   return { ...vision, referenceImageDataUrls };
 }

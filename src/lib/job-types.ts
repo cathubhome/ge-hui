@@ -16,6 +16,8 @@ export type JobResult = {
   songTitle?: string;
   characterDescription?: string;
   mode?: "text" | "vision" | "lyrics";
+  usedReferences?: number;
+  drawMode?: string;
 };
 
 export type JobRecord = {

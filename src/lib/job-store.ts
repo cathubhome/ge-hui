@@ -23,6 +23,10 @@ function jobPdfPath(id: string) {
   return path.join(jobsDir(), `${id}.pdf`);
 }
 
+function jobRefPath(id: string, i: number) {
+  return path.join(jobsDir(), `${id}.ref${i}.png`);
+}
+
 export function isJobRunning(id: string): boolean {
   return running.has(id);
 }
@@ -60,7 +64,6 @@ export async function createJob(input: JobCreateInput): Promise<JobRecord> {
     await fs.writeFile(jobPdfPath(id), input.pdfBytes);
   }
 
-  // Side channel for runner (not exposed in GET snapshot heavy fields)
   await writePrivateInput(id, {
     lyrics: input.lyrics || "",
     songTitle: input.songTitle || "",
@@ -117,10 +120,33 @@ export async function deleteJobPdf(id: string) {
   }
 }
 
+export async function writeJobRefs(id: string, dataUrls: string[]) {
+  await ensureDir();
+  let i = 0;
+  for (const u of dataUrls.slice(0, 2)) {
+    const m = /^data:image\/\w+;base64,(.+)$/.exec(u);
+    if (!m) continue;
+    await fs.writeFile(jobRefPath(id, i), Buffer.from(m[1], "base64"));
+    i += 1;
+  }
+}
+
+export async function readJobRefs(id: string): Promise<string[]> {
+  const out: string[] = [];
+  for (let i = 0; i < 2; i++) {
+    try {
+      const buf = await fs.readFile(jobRefPath(id, i));
+      out.push("data:image/png;base64," + buf.toString("base64"));
+    } catch {
+      // missing ref
+    }
+  }
+  return out;
+}
+
 async function persist(record: JobRecord) {
   await ensureDir();
   const slim = { ...record };
-  // Keep result.imageDataUrl in file for F5 resume; acceptable for demo scale.
   await fs.writeFile(jobJsonPath(record.id), JSON.stringify(slim, null, 2), "utf8");
   memory.set(record.id, record);
 }
@@ -157,7 +183,6 @@ export async function updateJob(
 }
 
 export function publicJobSnapshot(job: JobRecord): JobRecord {
-  // Already public-shaped; keep helper for future redaction.
   return job;
 }
 
@@ -166,7 +191,7 @@ export function stepLabel(step: JobStep, status: JobStatus): string {
   if (status === "error") return "出了点小状况";
   if (status === "done" || step === "done") return "绘本做好了";
   if (step === "reading_pdf") return "正在看绘本里的小伙伴…";
-  if (step === "planning") return "正在想每一格画什么…";
+  if (step === "planning") return "正在想这一页怎么画…";
   if (step === "drawing") return "画笔正在上色中…";
   return "正在生成…";
 }

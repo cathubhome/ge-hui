@@ -31,7 +31,7 @@ export function buildPictureBookSvg(plan: ScenePlan): string {
       const cx = startX + col * gapX;
       const cy = startY + row * gapY + 80;
       const fill = CIRCLE_COLORS[i % CIRCLE_COLORS.length];
-      const pose = posePath(p.action, cx, cy, r);
+      const pose = posePath(p.action, cx, cy);
       return `
       <text x="${cx}" y="${cy - r - 28}" text-anchor="middle" font-family="Arial, sans-serif" font-size="18" font-weight="700" fill="#1a1a1a">${escapeXml(p.labelEn)}</text>
       <text x="${cx}" y="${cy - r - 8}" text-anchor="middle" font-family="Arial, 'PingFang SC', 'Microsoft YaHei', sans-serif" font-size="14" fill="#444">${escapeXml(p.labelZh)}</text>
@@ -85,7 +85,7 @@ function escapeXml(s: string): string {
 }
 
 /** Simple stick-figure-ish character poses inside a circle */
-function posePath(action: string, cx: number, cy: number, r: number): string {
+function posePath(action: string, cx: number, cy: number): string {
   const skin = "#FF8A4C";
   const shirt = "#3A6EA5";
   const shoe = "#E74C3C";

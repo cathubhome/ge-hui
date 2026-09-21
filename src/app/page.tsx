@@ -24,7 +24,7 @@ const POLL_MS = 1500;
 const WAIT_TIPS = [
   "正在听歌里的小故事…",
   "正在看绘本里的小伙伴…",
-  "正在想每一格画什么…",
+  "正在想这一页怎么画…",
   "画笔正在上色中…",
   "差不多好了，再等一小会儿…",
 ];
@@ -294,16 +294,19 @@ export default function HomePage() {
   }, [applyJobSnapshot, startPolling, stopPoll]);
 
   useEffect(() => {
-    if (step !== "working") {
+    if (step !== "working") return;
+    const resetTimer = window.setTimeout(() => {
       setWaitSec(0);
       setTipIndex(0);
-      return;
-    }
+    }, 0);
     const timer = window.setInterval(() => {
       setWaitSec((s) => s + 1);
       setTipIndex((i) => (i + 1) % WAIT_TIPS.length);
     }, 1000);
-    return () => window.clearInterval(timer);
+    return () => {
+      window.clearTimeout(resetTimer);
+      window.clearInterval(timer);
+    };
   }, [step]);
 
   // Tip modal: Esc to close; never leave an invisible blocker.
@@ -330,6 +333,9 @@ export default function HomePage() {
 
     try {
       if (file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf")) {
+        // New PDF should not keep the previous song's title/lyrics.
+        setSongTitle("");
+        setLyrics("");
         // Light path only — no Gemini on upload.
         setProgressLabel("正在读你的文件…");
         const form = new FormData();
@@ -352,7 +358,7 @@ export default function HomePage() {
           setLyrics("");
           setUploadTip(
             data.tip ||
-              "这份 PDF 的字印在图上。文件先留在你这边，点「生成歌绘本」时再帮你看图读词～",
+              "这份是卡通绘本。生成时会用第 1 页和倒数第二页当主图，去掉商标二维码，把角色汇成一张歌绘～",
           );
           setProgressLabel("");
           setStep("idle");
@@ -651,7 +657,7 @@ export default function HomePage() {
           />
           {needsVision && pendingPdfBase64 ? (
             <p className="mt-2 text-xs leading-relaxed text-neutral-500">
-              已记住这份图文绘本。生成时会先看图读词，再画画～
+              已记住这份绘本。生成时会看最后一页歌词和角色页，再合成一张歌绘～
             </p>
           ) : null}
 
@@ -942,3 +948,4 @@ export default function HomePage() {
     </main>
   );
 }
+

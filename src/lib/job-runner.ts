@@ -5,9 +5,11 @@ import {
   isJobRunning,
   markJobRunning,
   readJobPdf,
+  readJobRefs,
   readPrivateInput,
   stepLabel,
   updateJob,
+  writeJobRefs,
   writePrivateInputAfterVision,
 } from "@/lib/job-store";
 import { visionExtractPdf } from "@/lib/pdf-vision";
@@ -36,11 +38,16 @@ async function callGenerateImage(body: Record<string, unknown>) {
     body: JSON.stringify(body),
   });
   const res = await POST(req);
-  const data = (await res.json()) as { imageDataUrl?: string; error?: string };
+  const data = (await res.json()) as {
+    imageDataUrl?: string;
+    error?: string;
+    usedReferences?: number;
+    drawMode?: string;
+  };
   if (!res.ok || !data.imageDataUrl) {
     throw new Error(data.error || "画画没成功");
   }
-  return data.imageDataUrl;
+  return data;
 }
 
 /**
@@ -72,7 +79,9 @@ async function runGenerateJob(jobId: string): Promise<void> {
   let lyrics = priv.lyrics;
   let songTitle = priv.songTitle;
   let characterDescription = priv.characterDescription;
-  let referenceImageDataUrls: string[] = [];
+  let referenceImageDataUrls: string[] = await readJobRefs(jobId);
+  let sceneLayout = "";
+  let cast: string[] = [];
   let mode: "text" | "vision" | "lyrics" = lyrics.trim() ? "lyrics" : "text";
 
   try {
@@ -94,7 +103,7 @@ async function runGenerateJob(jobId: string): Promise<void> {
       }
       await updateJob(jobId, {
         step: "reading_pdf",
-        progressLabel: "正在看绘本里的小伙伴…",
+        progressLabel: "正在看最后一页歌词和角色页…",
       });
       const vision = await visionExtractPdf(pdf, priv.chatModel || undefined);
       if (!lyrics.trim()) lyrics = vision.text;
@@ -103,9 +112,11 @@ async function runGenerateJob(jobId: string): Promise<void> {
         characterDescription = vision.characterDescription;
       }
       referenceImageDataUrls = vision.referenceImageDataUrls;
+      sceneLayout = vision.sceneLayout || "";
+      cast = vision.cast || [];
       mode = "vision";
+      await writeJobRefs(jobId, referenceImageDataUrls);
       await deleteJobPdf(jobId);
-      // Persist so a server restart resumes at planning, not re-vision.
       await writePrivateInputAfterVision(jobId, {
         lyrics,
         songTitle,
@@ -128,6 +139,8 @@ async function runGenerateJob(jobId: string): Promise<void> {
       throw new Error("还没有足够的歌词，请粘贴歌词或上传文件后再生成～");
     }
 
+    const pictureBook = mode === "vision" || referenceImageDataUrls.length > 0;
+
     await updateJob(jobId, {
       step: "planning",
       progressLabel: stepLabel("planning", "running"),
@@ -137,7 +150,15 @@ async function runGenerateJob(jobId: string): Promise<void> {
       songTitle: songTitle || undefined,
       chatModel: priv.chatModel || undefined,
       characterDescription: characterDescription || undefined,
+      pictureBook,
     });
+    if (pictureBook) {
+      plan.layout = "spread";
+      plan.panels = (plan.panels || []).slice(0, 4);
+      if (characterDescription) plan.characterDescription = characterDescription;
+      if (sceneLayout) plan.sceneLayout = sceneLayout;
+      if (cast.length) plan.cast = plan.cast?.length ? plan.cast : cast;
+    }
 
     await updateJob(jobId, {
       step: "drawing",
@@ -152,7 +173,7 @@ async function runGenerateJob(jobId: string): Promise<void> {
       },
     });
 
-    const imageDataUrl = await callGenerateImage({
+    const generated = await callGenerateImage({
       plan,
       imageModel: priv.imageModel || undefined,
       characterDescription:
@@ -167,13 +188,15 @@ async function runGenerateJob(jobId: string): Promise<void> {
       step: "done",
       progressLabel: stepLabel("done", "done"),
       result: {
-        imageDataUrl,
+        imageDataUrl: generated.imageDataUrl,
         plan,
         lyrics,
         songTitle: songTitle || undefined,
         characterDescription:
           characterDescription || plan.characterDescription || undefined,
         mode,
+        usedReferences: generated.usedReferences,
+        drawMode: generated.drawMode,
       },
     });
   } catch (e) {
