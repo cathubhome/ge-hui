@@ -29,6 +29,8 @@ const WAIT_TIPS = [
   "差不多好了，再等一小会儿…",
 ];
 
+const WAIT_STEPS = ["识读", "构思", "画画"] as const;
+
 const DEMO_SONG_TITLE = "Head Shoulders Knees and Toes";
 
 const DEMO_LYRICS = `Head, shoulders, knees and toes, knees and toes.
@@ -47,6 +49,76 @@ function fileToBase64(file: File): Promise<string> {
     reader.onerror = () => reject(new Error("读文件失败"));
     reader.readAsDataURL(file);
   });
+}
+
+/** Infer 0/1/2 from progressLabel / jobStatus for the three wait steps. */
+function inferWaitStep(progressLabel: string, jobStatus: string): number {
+  const t = `${progressLabel} ${jobStatus}`.toLowerCase();
+  if (/draw|画|上色|image|paint|绘/.test(t)) return 2;
+  if (/plan|构思|想|画面|scene/.test(t)) return 1;
+  if (/reading|vision|识读|看图|听歌|读|lyric|transcrib|extract|准备/.test(t)) return 0;
+  if (jobStatus === "queued") return 0;
+  if (jobStatus === "running") return 1;
+  return 0;
+}
+
+function SunMusicDoodle({ className = "" }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      width="56"
+      height="56"
+      viewBox="0 0 64 64"
+      fill="none"
+      aria-hidden="true"
+    >
+      <circle cx="28" cy="28" r="12" fill="#ff6b2c" opacity="0.9" />
+      <g stroke="#ff6b2c" strokeWidth="2.5" strokeLinecap="round">
+        <path d="M28 8v4M28 44v4M8 28h4M44 28h4M14 14l3 3M39 39l3 3M14 42l3-3M39 17l3-3" />
+      </g>
+      <path
+        d="M40 22v22"
+        stroke="#1db8a6"
+        strokeWidth="3"
+        strokeLinecap="round"
+      />
+      <circle cx="40" cy="44" r="5" fill="#1db8a6" />
+      <path
+        d="M40 22c6 2 10 6 12 12"
+        stroke="#1db8a6"
+        strokeWidth="2.5"
+        strokeLinecap="round"
+        fill="none"
+      />
+    </svg>
+  );
+}
+
+function MusicBookIcons() {
+  return (
+    <div className="flex items-center justify-center gap-3 text-2xl" aria-hidden="true">
+      <span>🎵</span>
+      <svg width="28" height="28" viewBox="0 0 32 32" fill="none">
+        <rect x="6" y="4" width="18" height="24" rx="2" fill="#fffdf8" stroke="#1db8a6" strokeWidth="2" />
+        <path d="M10 10h10M10 15h10M10 20h7" stroke="#ff6b2c" strokeWidth="1.8" strokeLinecap="round" />
+      </svg>
+      <span>📖</span>
+    </div>
+  );
+}
+
+function SoftGridSkeleton() {
+  return (
+    <div className="soft-grid mx-auto grid w-full max-w-xs grid-cols-2 gap-2 rounded-2xl border border-[#f0e6d4] bg-[#fffdf8]/80 p-3">
+      {Array.from({ length: 8 }).map((_, i) => (
+        <div
+          key={i}
+          className="h-10 animate-pulse rounded-lg bg-gradient-to-br from-[#ffe4c8]/70 to-[#c8f0e8]/60"
+          style={{ animationDelay: `${i * 80}ms` }}
+        />
+      ))}
+    </div>
+  );
 }
 
 export default function HomePage() {
@@ -72,6 +144,7 @@ export default function HomePage() {
   const [uploadTip, setUploadTip] = useState("");
   const [jobId, setJobId] = useState<string | null>(null);
   const [jobStatus, setJobStatus] = useState<JobStatus | "">("");
+  const [dragOver, setDragOver] = useState(false);
   const pollTimer = useRef<number | null>(null);
   const resumeTried = useRef(false);
 
@@ -84,6 +157,11 @@ export default function HomePage() {
     if (needsVision && pendingPdfBase64) return true;
     return false;
   }, [lyrics, jobBusy, needsVision, pendingPdfBase64]);
+
+  const waitStepIndex = useMemo(
+    () => inferWaitStep(progressLabel, String(jobStatus)),
+    [progressLabel, jobStatus],
+  );
 
   const stopPoll = useCallback(() => {
     if (pollTimer.current != null) {
@@ -402,243 +480,356 @@ export default function HomePage() {
   }
 
   return (
-    <main className="mx-auto min-h-screen max-w-3xl px-4 py-8 sm:py-12">
-      <header className="mb-8 text-center">
-        <p className="text-sm font-medium text-[#ff6b2c]">儿童英语启蒙 · 一页歌绘本</p>
-        <h1 className="mt-2 text-3xl font-bold tracking-tight text-neutral-900 sm:text-4xl">
-          歌绘
-        </h1>
-        <p className="mt-3 text-sm leading-relaxed text-neutral-600 sm:text-base">
-          上传儿歌音频或歌词 PDF，一键生成一张适合打印的启蒙绘本页。
-        </p>
+    <main className="mx-auto min-h-screen max-w-6xl px-4 py-8 sm:py-10">
+      {/* Brand header */}
+      <header className="mb-6 flex flex-col items-center text-center sm:mb-8">
+        <div className="flex items-center gap-3">
+          <SunMusicDoodle className="shrink-0 drop-shadow-sm" />
+          <div>
+            <h1 className="font-display text-4xl tracking-wide text-neutral-900 sm:text-5xl">
+              歌绘
+            </h1>
+            <p className="mt-1 text-sm text-neutral-600 sm:text-base">
+              把儿歌变成一页可打印的启蒙绘本
+            </p>
+          </div>
+        </div>
+        <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
+          <span className="rounded-full bg-[#ff6b2c]/12 px-3 py-1 text-xs font-semibold text-[#c2410c]">
+            一页
+          </span>
+          <span className="rounded-full bg-[#1db8a6]/12 px-3 py-1 text-xs font-semibold text-[#0f766e]">
+            可打印
+          </span>
+          <span className="rounded-full bg-[#ff6b2c]/10 px-3 py-1 text-xs font-semibold text-[#c2410c]">
+            边唱边指
+          </span>
+        </div>
       </header>
 
-      <section className="mb-6 overflow-hidden rounded-3xl border border-neutral-200/80 bg-white shadow-sm">
-        <div className="grid gap-0 sm:grid-cols-2">
-          <div className="bg-[#faf7f0] p-4 sm:p-5">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src="/samples/ge-hui-final-sample.png"
-              alt="歌绘成品示例：Head Shoulders Knees and Toes"
-              className="w-full rounded-2xl border border-neutral-100 bg-white shadow-sm"
-            />
-          </div>
-          <div className="flex flex-col justify-center gap-3 p-5 sm:p-6">
-            <p className="text-xs font-semibold tracking-wide text-[#ff6b2c]">成品示例</p>
-            <h2 className="text-lg font-bold text-neutral-900">生成后的绘本页可以长这样</h2>
-            <p className="text-sm leading-relaxed text-neutral-600">
-              这是一首经典儿歌做成的一页启蒙绘本示例。点下面按钮，会自动填好歌名和歌词，你可以直接生成试试。
+      {/* Compact demo */}
+      <section className="paper-card mb-6 overflow-hidden rounded-3xl">
+        <div className="flex flex-col gap-3 p-3 sm:flex-row sm:items-center sm:gap-4 sm:p-4">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/samples/ge-hui-final-sample.png"
+            alt="歌绘成品示例：Head Shoulders Knees and Toes"
+            className="h-24 w-full shrink-0 rounded-2xl border border-[#f0e6d4] object-cover object-top sm:h-28 sm:w-40"
+          />
+          <div className="min-w-0 flex-1">
+            <p className="text-xs font-semibold tracking-wide text-[#ff6b2c]">成品小样</p>
+            <p className="mt-0.5 text-sm font-semibold text-neutral-800">
+              生成后的绘本页可以长这样
             </p>
-            <button
-              type="button"
-              onClick={tryDemoSong}
-              disabled={jobBusy}
-              className="mt-1 w-full rounded-2xl border border-[#ff6b2c]/40 bg-[#fff4ee] px-4 py-3 text-sm font-semibold text-[#c2410c] transition hover:bg-[#ffe8da] disabled:opacity-50 sm:w-auto"
-            >
-              用这首歌试一试
-            </button>
+            <p className="mt-1 text-xs leading-relaxed text-neutral-500">
+              点一下，会填好歌名和歌词，你可以直接生成试试～
+            </p>
           </div>
+          <button
+            type="button"
+            onClick={tryDemoSong}
+            disabled={jobBusy}
+            className="shrink-0 rounded-2xl border border-[#ff6b2c]/40 bg-[#fff4ee] px-4 py-2.5 text-sm font-semibold text-[#c2410c] transition hover:bg-[#ffe8da] disabled:opacity-50 sm:self-center"
+          >
+            用这首歌试一试
+          </button>
         </div>
       </section>
 
-      <section className="rounded-3xl border border-neutral-200/80 bg-white p-5 shadow-sm sm:p-7">
-        <label className="block text-sm font-medium text-neutral-800">歌曲名（可选）</label>
-        <input
-          className="mt-2 w-full rounded-xl border border-neutral-200 bg-[#faf7f0] px-3 py-2.5 text-sm outline-none ring-[#ff6b2c]/40 focus:ring-2 disabled:opacity-60"
-          placeholder="例如 Head Shoulders Knees and Toes"
-          value={songTitle}
-          disabled={jobBusy}
-          onChange={(e) => setSongTitle(e.target.value)}
-        />
+      {/* Two-column shell: form | sticky stage */}
+      <div className="grid gap-6 lg:grid-cols-2 lg:items-start">
+        {/* LEFT: input form */}
+        <section className="paper-card rounded-3xl p-5 sm:p-6">
+          <label className="block text-sm font-semibold text-neutral-800">歌曲名（可选）</label>
+          <input
+            className="mt-2 w-full rounded-xl border border-[#f0e6d4] bg-[#fffdf8] px-3 py-2.5 text-sm outline-none ring-[#ff6b2c]/40 focus:ring-2 disabled:opacity-60"
+            placeholder="例如 Head Shoulders Knees and Toes"
+            value={songTitle}
+            disabled={jobBusy}
+            onChange={(e) => setSongTitle(e.target.value)}
+          />
 
-        <div className="mt-5">
-          <label className="block text-sm font-medium text-neutral-800">上传音频或 PDF</label>
-          <label className="mt-2 flex cursor-pointer flex-col items-center justify-center rounded-2xl border border-dashed border-neutral-300 bg-[#faf7f0] px-4 py-8 text-center transition hover:border-[#ff6b2c]/60">
-            <span className="text-sm text-neutral-700">点击选择文件</span>
-            <span className="mt-1 text-xs text-neutral-500">支持 mp3 / wav / m4a / pdf</span>
-            {fileName ? (
-              <span className="mt-2 text-xs text-[#ff6b2c]">已选：{fileName}</span>
-            ) : null}
-            <input
-              type="file"
-              accept="audio/*,.pdf,application/pdf"
-              className="hidden"
-              disabled={jobBusy}
-              onChange={(e) => void onPickFile(e.target.files?.[0] ?? null)}
-            />
-          </label>
-          {uploadTip ? (
-            <p className="mt-2 text-xs leading-relaxed text-[#c2410c]">{uploadTip}</p>
-          ) : null}
-          {freeSites.length > 0 ? (
-            <p className="mt-2 text-xs leading-relaxed text-neutral-500">
-              也可以先用浏览器里的免费听写工具整理歌词，再粘贴到下面：
-              {freeSites.map((s, i) => (
-                <span key={s.url}>
-                  {i > 0 ? " · " : " "}
-                  <a
-                    href={s.url}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="text-[#ff6b2c] underline-offset-2 hover:underline"
-                    title={s.tip}
-                  >
-                    {s.name}
-                  </a>
-                </span>
-              ))}
-            </p>
-          ) : null}
-        </div>
-
-        <label className="mt-5 block text-sm font-medium text-neutral-800">歌词</label>
-        <textarea
-          className="mt-2 min-h-[160px] w-full resize-y rounded-2xl border border-neutral-200 bg-[#faf7f0] px-3 py-3 text-sm leading-relaxed outline-none ring-[#ff6b2c]/40 focus:ring-2 disabled:opacity-60"
-          placeholder="把歌词粘贴在这里，或上传文件自动整理…"
-          value={lyrics}
-          disabled={jobBusy}
-          onChange={(e) => setLyrics(e.target.value)}
-        />
-        {needsVision && pendingPdfBase64 ? (
-          <p className="mt-2 text-xs leading-relaxed text-neutral-500">
-            已记住这份图文绘本。生成时会先看图读词，再画画～
-          </p>
-        ) : null}
-
-        <button
-          type="button"
-          className="mt-4 flex w-full items-center justify-between rounded-xl border border-neutral-200 bg-white px-3 py-2.5 text-left text-sm text-neutral-700"
-          onClick={() => setShowAdvanced((v) => !v)}
-        >
-          <span>高级设置</span>
-          <span className="text-neutral-400">{showAdvanced ? "收起" : "展开"}</span>
-        </button>
-        {showAdvanced ? (
-          <div className="mt-3 grid gap-3 rounded-2xl border border-neutral-100 bg-[#faf7f0] p-4 sm:grid-cols-2">
-            <div>
-              <label className="text-xs font-medium text-neutral-600">听歌 / 构思模型</label>
-              <select
-                className="mt-1 w-full rounded-lg border border-neutral-200 bg-white px-2 py-2 text-sm disabled:opacity-60"
-                value={chatModel}
-                disabled={jobBusy}
-                onChange={(e) => setChatModel(e.target.value)}
-              >
-                {chatModels.map((m) => (
-                  <option key={m.id} value={m.id}>
-                    {m.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="text-xs font-medium text-neutral-600">画画模型</label>
-              <select
-                className="mt-1 w-full rounded-lg border border-neutral-200 bg-white px-2 py-2 text-sm disabled:opacity-60"
-                value={imageModel}
-                disabled={jobBusy}
-                onChange={(e) => setImageModel(e.target.value)}
-              >
-                {imageModels.map((m) => (
-                  <option key={m.id} value={m.id}>
-                    {m.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-        ) : null}
-
-        <button
-          type="button"
-          disabled={!canGenerate}
-          onClick={() => void onGenerate()}
-          className="mt-5 w-full rounded-2xl bg-[#ff6b2c] px-4 py-3.5 text-sm font-semibold text-white shadow-sm transition enabled:hover:bg-[#ef5a1a] disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          {jobBusy ? "正在生成…" : "生成歌绘本"}
-        </button>
-
-        {step === "working" ? (
-          <div className="mt-4 rounded-2xl border border-orange-100 bg-orange-50/80 px-4 py-3 text-sm text-neutral-700">
-            <p className="font-medium text-[#c2410c]">{progressLabel || "正在生成…"}</p>
-            <p className="mt-1 text-neutral-600">{WAIT_TIPS[tipIndex]}</p>
-            <p className="mt-1 text-xs text-neutral-500">
-              已等待 {waitSec} 秒
-              {jobId ? ` · 任务保留中，刷新页面也会继续` : ""}
-            </p>
-          </div>
-        ) : null}
-
-        {error ? (
-          <div className="mt-4 rounded-2xl border border-rose-100 bg-rose-50 px-4 py-3 text-sm text-rose-700">
-            <p>{error}</p>
-            <button
-              type="button"
-              className="mt-2 text-sm font-medium text-[#ff6b2c] underline-offset-2 hover:underline"
-              disabled={jobBusy}
-              onClick={() => {
-                setError("");
-                if (canGenerate) void onGenerate();
+          <div className="mt-5">
+            <label className="block text-sm font-semibold text-neutral-800">
+              上传音频或 PDF
+            </label>
+            <label
+              className={`mt-2 flex cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed px-4 py-7 text-center transition ${
+                dragOver
+                  ? "border-[#ff6b2c] bg-[#fff4ee]"
+                  : "border-[#f0e6d4] bg-[#fffdf8] hover:border-[#1db8a6]/70 hover:bg-[#f0faf8]"
+              } ${jobBusy ? "pointer-events-none opacity-60" : ""}`}
+              onDragEnter={(e) => {
+                e.preventDefault();
+                setDragOver(true);
+              }}
+              onDragOver={(e) => {
+                e.preventDefault();
+                setDragOver(true);
+              }}
+              onDragLeave={() => setDragOver(false)}
+              onDrop={(e) => {
+                e.preventDefault();
+                setDragOver(false);
+                const f = e.dataTransfer.files?.[0] ?? null;
+                void onPickFile(f);
               }}
             >
-              再试一次
-            </button>
-          </div>
-        ) : null}
-
-        {step === "idle" && !imageDataUrl && !error ? (
-          <div className="mt-4 flex min-h-[280px] items-center justify-center rounded-2xl bg-[#faf7f0] text-sm text-neutral-500">
-            做好后的绘本会出现在这里
-          </div>
-        ) : null}
-        {step === "working" && !imageDataUrl ? (
-          <div className="mt-4 grid min-h-[280px] place-items-center rounded-2xl bg-[#faf7f0]">
-            <div className="text-center">
-              <div className="mx-auto h-14 w-14 animate-bounce rounded-full bg-[#ff6b2c]"></div>
-              <p className="mt-3 text-sm text-neutral-600">绘本正在长大...</p>
-            </div>
-          </div>
-        ) : null}
-        {imageDataUrl ? (
-          <div className="mt-4 space-y-3">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={imageDataUrl}
-              alt="生成的歌绘本页"
-              className="w-full rounded-2xl border border-neutral-100 bg-white shadow-sm"
-            />
-            <div className="flex flex-wrap gap-2">
-              <button
-                type="button"
-                onClick={onDownload}
-                className="rounded-xl bg-neutral-900 px-4 py-2.5 text-sm font-medium text-white"
-              >
-                下载图片
-              </button>
-              <button
-                type="button"
+              <MusicBookIcons />
+              <span className="mt-3 text-sm font-medium text-neutral-700">
+                把歌或歌词本拖进来，或点这里选文件
+              </span>
+              <span className="mt-1 text-xs text-neutral-500">支持 mp3 / wav / m4a / pdf</span>
+              {fileName ? (
+                <span className="mt-3 inline-flex max-w-full items-center gap-1.5 rounded-full border border-[#ff6b2c]/30 bg-[#fff4ee] px-3 py-1 text-xs font-medium text-[#c2410c] shadow-sm">
+                  <span aria-hidden="true">📎</span>
+                  <span className="truncate">已选：{fileName}</span>
+                </span>
+              ) : null}
+              <input
+                type="file"
+                accept="audio/*,.pdf,application/pdf"
+                className="hidden"
                 disabled={jobBusy}
-                onClick={onNewGenerate}
-                className="rounded-xl border border-neutral-200 bg-white px-4 py-2.5 text-sm text-neutral-700 disabled:opacity-50"
-              >
-                再画一张
-              </button>
-            </div>
-            {plan ? (
-              <details className="rounded-xl border border-neutral-100 bg-[#faf7f0] px-3 py-2 text-xs text-neutral-600">
-                <summary className="cursor-pointer select-none font-medium text-neutral-700">
-                  本页画面说明
-                </summary>
-                <pre className="mt-2 overflow-x-auto whitespace-pre-wrap font-sans leading-relaxed">
-                  {JSON.stringify(plan, null, 2)}
-                </pre>
-              </details>
+                onChange={(e) => void onPickFile(e.target.files?.[0] ?? null)}
+              />
+            </label>
+            {uploadTip ? (
+              <p className="mt-2 text-xs leading-relaxed text-[#c2410c]">{uploadTip}</p>
+            ) : null}
+            {freeSites.length > 0 ? (
+              <p className="mt-2 text-xs leading-relaxed text-neutral-500">
+                也可以先用浏览器里的免费听写工具整理歌词，再粘贴到下面：
+                {freeSites.map((s, i) => (
+                  <span key={s.url}>
+                    {i > 0 ? " · " : " "}
+                    <a
+                      href={s.url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-[#ff6b2c] underline-offset-2 hover:underline"
+                      title={s.tip}
+                    >
+                      {s.name}
+                    </a>
+                  </span>
+                ))}
+              </p>
             ) : null}
           </div>
-        ) : null}
-      </section>
 
-      <footer className="mt-8 text-center text-xs text-neutral-400">
-        歌绘 · 一页启蒙绘本
+          <label className="mt-5 block text-sm font-semibold text-neutral-800">歌词</label>
+          <textarea
+            className="mt-2 min-h-[140px] w-full resize-y rounded-2xl border border-[#f0e6d4] bg-[#fffdf8] px-3 py-3 text-sm leading-relaxed outline-none ring-[#ff6b2c]/40 focus:ring-2 disabled:opacity-60"
+            placeholder="把歌词粘贴在这里，或上传文件自动整理…"
+            value={lyrics}
+            disabled={jobBusy}
+            onChange={(e) => setLyrics(e.target.value)}
+          />
+          {needsVision && pendingPdfBase64 ? (
+            <p className="mt-2 text-xs leading-relaxed text-neutral-500">
+              已记住这份图文绘本。生成时会先看图读词，再画画～
+            </p>
+          ) : null}
+
+          <button
+            type="button"
+            className="mt-4 flex w-full items-center justify-between rounded-xl border border-[#f0e6d4] bg-[#fffdf8] px-3 py-2.5 text-left text-sm text-neutral-700"
+            onClick={() => setShowAdvanced((v) => !v)}
+          >
+            <span>更多小设置</span>
+            <span className="text-neutral-400">{showAdvanced ? "收起" : "展开"}</span>
+          </button>
+          {showAdvanced ? (
+            <div className="paper-card mt-3 grid gap-3 rounded-2xl p-4 sm:grid-cols-2">
+              <div>
+                <label className="text-xs font-medium text-neutral-600">
+                  谁来听歌想画面
+                </label>
+                <select
+                  className="mt-1 w-full rounded-lg border border-[#f0e6d4] bg-white px-2 py-2 text-sm disabled:opacity-60"
+                  value={chatModel}
+                  disabled={jobBusy}
+                  onChange={(e) => setChatModel(e.target.value)}
+                >
+                  {chatModels.map((m) => (
+                    <option key={m.id} value={m.id}>
+                      {m.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="text-xs font-medium text-neutral-600">谁来画画</label>
+                <select
+                  className="mt-1 w-full rounded-lg border border-[#f0e6d4] bg-white px-2 py-2 text-sm disabled:opacity-60"
+                  value={imageModel}
+                  disabled={jobBusy}
+                  onChange={(e) => setImageModel(e.target.value)}
+                >
+                  {imageModels.map((m) => (
+                    <option key={m.id} value={m.id}>
+                      {m.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          ) : null}
+
+          <button
+            type="button"
+            disabled={!canGenerate}
+            onClick={() => void onGenerate()}
+            className="mt-5 w-full rounded-2xl bg-[#ff6b2c] px-4 py-3.5 text-sm font-semibold text-white shadow-sm transition enabled:hover:bg-[#ef5a1a] disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {jobBusy ? "正在生成…" : "生成歌绘本"}
+          </button>
+
+          {step === "working" ? (
+            <div className="mt-4 rounded-2xl border border-orange-100 bg-orange-50/80 px-4 py-3 text-sm text-neutral-700">
+              <p className="font-medium text-[#c2410c]">{progressLabel || "正在生成…"}</p>
+              <p className="mt-1 text-neutral-600">{WAIT_TIPS[tipIndex]}</p>
+              <p className="mt-1 text-xs text-neutral-500">
+                已等待 {waitSec} 秒
+                {jobId ? ` · 任务保留中，刷新页面也会继续` : ""}
+              </p>
+            </div>
+          ) : null}
+
+          {error ? (
+            <div className="mt-4 rounded-2xl border border-rose-100 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+              <p>{error}</p>
+              <button
+                type="button"
+                className="mt-2 text-sm font-medium text-[#ff6b2c] underline-offset-2 hover:underline"
+                disabled={jobBusy}
+                onClick={() => {
+                  setError("");
+                  if (canGenerate) void onGenerate();
+                }}
+              >
+                再试一次
+              </button>
+            </div>
+          ) : null}
+        </section>
+
+        {/* RIGHT: sticky result stage */}
+        <aside className="lg:sticky lg:top-6">
+          <div className="paper-card doodle-bg overflow-hidden rounded-3xl p-5 sm:p-6">
+            <div className="mb-3 flex items-center justify-between gap-2">
+              <h2 className="font-display text-lg text-neutral-800">绘本小舞台</h2>
+              {imageDataUrl ? (
+                <span className="rounded-full bg-[#1db8a6]/15 px-2.5 py-1 text-[11px] font-semibold text-[#0f766e]">
+                  适合打印 · 一页启蒙绘本
+                </span>
+              ) : null}
+            </div>
+
+            {step === "idle" && !imageDataUrl && !error ? (
+              <div className="doodle-bg soft-grid rounded-2xl border border-dashed border-[#f0e6d4] px-4 py-6 text-center">
+                <p className="text-sm font-medium text-neutral-600">绘本还在等你点开魔法～</p>
+                <p className="mt-1 text-xs text-neutral-400">
+                  左边填好歌词或上传歌曲，右边就会长出一页小画
+                </p>
+              </div>
+            ) : null}
+
+            {step === "working" && !imageDataUrl ? (
+              <div className="space-y-4">
+                <div className="flex items-center justify-center gap-2 sm:gap-3">
+                  {WAIT_STEPS.map((label, i) => {
+                    const active = i === waitStepIndex;
+                    const done = i < waitStepIndex;
+                    return (
+                      <div key={label} className="flex items-center gap-2 sm:gap-3">
+                        <div className="flex flex-col items-center gap-1">
+                          <span
+                            className={`flex h-8 w-8 items-center justify-center rounded-full text-xs font-bold transition ${
+                              active
+                                ? "bg-[#ff6b2c] text-white shadow-md shadow-[#ff6b2c]/30"
+                                : done
+                                  ? "bg-[#1db8a6] text-white"
+                                  : "bg-[#f0e6d4] text-neutral-500"
+                            }`}
+                          >
+                            {done ? "✓" : i + 1}
+                          </span>
+                          <span
+                            className={`text-[11px] font-medium ${
+                              active ? "text-[#c2410c]" : "text-neutral-500"
+                            }`}
+                          >
+                            {label}
+                          </span>
+                        </div>
+                        {i < WAIT_STEPS.length - 1 ? (
+                          <span
+                            className={`mb-4 hidden h-0.5 w-6 rounded sm:block ${
+                              done ? "bg-[#1db8a6]" : "bg-[#f0e6d4]"
+                            }`}
+                          />
+                        ) : null}
+                      </div>
+                    );
+                  })}
+                </div>
+                <SoftGridSkeleton />
+                <p className="text-center text-sm text-neutral-600">绘本格子正在长大…</p>
+              </div>
+            ) : null}
+
+            {imageDataUrl ? (
+              <div className="space-y-3">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={imageDataUrl}
+                  alt="生成的歌绘本页"
+                  className="w-full rounded-2xl border border-[#f0e6d4] bg-white shadow-sm"
+                />
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={onDownload}
+                    className="rounded-xl bg-[#ff6b2c] px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#ef5a1a]"
+                  >
+                    下载图片
+                  </button>
+                  <button
+                    type="button"
+                    disabled={jobBusy}
+                    onClick={onNewGenerate}
+                    className="rounded-xl border border-[#f0e6d4] bg-white px-4 py-2.5 text-sm text-neutral-700 disabled:opacity-50"
+                  >
+                    再画一张
+                  </button>
+                </div>
+                {plan ? (
+                  <details className="rounded-xl border border-[#f0e6d4] bg-[#fffdf8] px-3 py-2 text-xs text-neutral-600">
+                    <summary className="cursor-pointer select-none font-medium text-neutral-700">
+                      给老师看的画面说明
+                    </summary>
+                    <pre className="mt-2 overflow-x-auto whitespace-pre-wrap font-sans leading-relaxed">
+                      {JSON.stringify(plan, null, 2)}
+                    </pre>
+                  </details>
+                ) : null}
+              </div>
+            ) : null}
+
+            {error && !imageDataUrl && step !== "working" ? (
+              <div className="rounded-2xl border border-rose-100 bg-rose-50/80 px-4 py-5 text-center text-sm text-rose-600">
+                小舞台暂时空着，修好左边再试一次吧～
+              </div>
+            ) : null}
+          </div>
+        </aside>
+      </div>
+
+      <footer className="mt-10 space-y-1 text-center text-xs text-neutral-400">
+        <p>歌绘 · 一页启蒙绘本</p>
+        <p>适合睡前、英语角，或打印贴在墙上一起唱。</p>
       </footer>
     </main>
   );

@@ -5,17 +5,46 @@
   --ink: #1a1a1a;
   --accent: #ff6b2c;
   --accent2: #1db8a6;
+  --paper: #fffdf8;
+  --paper-edge: #f0e6d4;
 }
 
 body {
-  background: radial-gradient(1200px 600px at 10% -10%, #ffe8d6 0%, transparent 55%),
-    radial-gradient(900px 500px at 100% 0%, #d7f3ee 0%, transparent 50%),
+  background:
+    radial-gradient(1000px 520px at 8% -8%, #ffe4c8 0%, transparent 55%),
+    radial-gradient(820px 460px at 96% 4%, #c8f0e8 0%, transparent 52%),
+    radial-gradient(600px 400px at 50% 100%, #ffe9f0 0%, transparent 45%),
     var(--bg);
   color: var(--ink);
-  font-family: var(--font-geist-sans), "PingFang SC", "Microsoft YaHei", sans-serif;
+  font-family: var(--font-nunito), "PingFang SC", "Microsoft YaHei", sans-serif;
   min-height: 100vh;
 }
 
 * {
   box-sizing: border-box;
+}
+
+.font-display {
+  font-family: var(--font-display), "PingFang SC", "Microsoft YaHei", sans-serif;
+}
+
+.paper-card {
+  background: var(--paper);
+  border: 2px solid var(--paper-edge);
+  box-shadow: 0 10px 30px rgba(255, 107, 44, 0.06);
+}
+
+.doodle-bg {
+  background-image:
+    radial-gradient(circle at 12% 18%, rgba(255, 107, 44, 0.07) 0 3px, transparent 4px),
+    radial-gradient(circle at 88% 22%, rgba(29, 184, 166, 0.09) 0 2.5px, transparent 3.5px),
+    radial-gradient(circle at 70% 80%, rgba(255, 107, 44, 0.05) 0 2px, transparent 3px);
+}
+
+.soft-grid {
+  background-image:
+    linear-gradient(rgba(255, 107, 44, 0.08) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(29, 184, 166, 0.08) 1px, transparent 1px);
+  background-size: 50% 50%;
+  background-position: center;
 }
