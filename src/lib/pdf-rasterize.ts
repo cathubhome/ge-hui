@@ -12,29 +12,73 @@ export type RasterPage = {
 const MAX_PAGES = 8;
 const TARGET_MAX_EDGE = 960;
 
+type CanvasBag = {
+  canvas: unknown;
+  context: unknown;
+};
+
+/** pdfjs Node factory that uses @napi-rs/canvas and avoids width=0 destroy crash. */
+class NapiCanvasFactory {
+  create(width: number, height: number): CanvasBag {
+    const canvas = createCanvas(
+      Math.max(1, Math.ceil(width)),
+      Math.max(1, Math.ceil(height)),
+    );
+    return { canvas, context: canvas.getContext("2d") };
+  }
+  reset(canvasAndContext: CanvasBag, width: number, height: number) {
+    const canvas = canvasAndContext.canvas as { width: number; height: number };
+    canvas.width = Math.max(1, Math.ceil(width));
+    canvas.height = Math.max(1, Math.ceil(height));
+  }
+  destroy(canvasAndContext: CanvasBag) {
+    // Do not set width/height to 0 — @napi-rs/canvas Skia fails on that.
+    canvasAndContext.canvas = null;
+    canvasAndContext.context = null;
+  }
+}
+
 type Pdfjs = {
-  getDocument: (src: {
-    data: Uint8Array;
-    useSystemFonts?: boolean;
-    disableFontFace?: boolean;
-    isEvalSupported?: boolean;
-  }) => {
+  getDocument: (src: Record<string, unknown>) => {
     promise: Promise<{
       numPages: number;
       getPage: (n: number) => Promise<{
         getViewport: (o: { scale: number }) => { width: number; height: number };
-        render: (o: {
-          canvasContext: unknown;
-          viewport: { width: number; height: number };
-        }) => { promise: Promise<void> };
+        render: (o: Record<string, unknown>) => { promise: Promise<void> };
       }>;
     }>;
   };
   GlobalWorkerOptions?: { workerSrc: string };
 };
 
+function shimCanvasResolve() {
+  const require = createRequire(join(process.cwd(), "package.json"));
+  const NodeModule = require("module") as {
+    _resolveFilename: (
+      request: string,
+      parent: unknown,
+      isMain: boolean,
+      options?: unknown,
+    ) => string;
+  };
+  const original = NodeModule._resolveFilename;
+  if ((original as { __geHuiShim?: boolean }).__geHuiShim) return;
+  NodeModule._resolveFilename = function (
+    request: string,
+    parent: unknown,
+    isMain: boolean,
+    options?: unknown,
+  ) {
+    if (request === "canvas") {
+      return original.call(this, "@napi-rs/canvas", parent, isMain, options);
+    }
+    return original.call(this, request, parent, isMain, options);
+  };
+  (NodeModule._resolveFilename as { __geHuiShim?: boolean }).__geHuiShim = true;
+}
+
 function loadPdfjs(): Pdfjs {
-  // Resolve from project root so this works under Next CJS/ESM compiles.
+  shimCanvasResolve();
   const require = createRequire(join(process.cwd(), "package.json"));
   const pdfjs = require("pdfjs-dist/legacy/build/pdf.js") as Pdfjs;
   if (pdfjs.GlobalWorkerOptions) {
@@ -45,7 +89,6 @@ function loadPdfjs(): Pdfjs {
 
 /**
  * Rasterize the first N PDF pages to PNG data URLs for multimodal vision.
- * Pins: pdfjs-dist@3.11.174 + @napi-rs/canvas@0.1.53 (Node-verified).
  */
 export async function rasterizePdfPages(
   pdfBytes: Uint8Array,
@@ -54,12 +97,14 @@ export async function rasterizePdfPages(
   const maxPages = opts?.maxPages ?? MAX_PAGES;
   const maxEdge = opts?.maxEdge ?? TARGET_MAX_EDGE;
   const pdfjs = loadPdfjs();
+  const canvasFactory = new NapiCanvasFactory();
 
   const doc = await pdfjs.getDocument({
     data: pdfBytes,
     useSystemFonts: true,
     disableFontFace: true,
     isEvalSupported: false,
+    canvasFactory,
   }).promise;
 
   const pageCount = Math.min(Number(doc.numPages) || 0, maxPages);
@@ -79,9 +124,16 @@ export async function rasterizePdfPages(
       Math.ceil(viewport.height),
     );
     const ctx = canvas.getContext("2d");
-    await page.render({ canvasContext: ctx, viewport }).promise;
+    await page
+      .render({
+        canvasContext: ctx,
+        viewport,
+        canvas,
+        canvasFactory,
+      })
+      .promise;
     const buf = canvas.toBuffer("image/png");
-    let dataUrl = `data:image/png;base64,${buf.toString("base64")}`;
+    let dataUrl = "data:image/png;base64," + buf.toString("base64");
     dataUrl = await downscaleDataUrl(dataUrl, maxEdge);
     pages.push({
       page: i,
@@ -93,7 +145,6 @@ export async function rasterizePdfPages(
   return pages;
 }
 
-/** Shrink a PNG data URL for cheaper vision tokens. */
 export async function downscaleDataUrl(
   dataUrl: string,
   maxEdge = 768,
@@ -109,7 +160,10 @@ export async function downscaleDataUrl(
     const h = Math.max(1, Math.round(img.height * scale));
     const canvas = createCanvas(w, h);
     canvas.getContext("2d").drawImage(img, 0, 0, w, h);
-    return `data:image/png;base64,${canvas.toBuffer("image/png").toString("base64")}`;
+    return (
+      "data:image/png;base64," +
+      canvas.toBuffer("image/png").toString("base64")
+    );
   } catch {
     return dataUrl;
   }
