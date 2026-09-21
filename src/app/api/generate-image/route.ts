@@ -40,6 +40,15 @@ export async function POST(req: NextRequest) {
         { status: 400 },
       );
     }
+    if (/gemini/i.test(selectedImageModel) && /image/i.test(selectedImageModel)) {
+      return NextResponse.json(
+        {
+          error:
+            "这个画师暂时不能用，请在小设置里换推荐的出图模型再试～",
+        },
+        { status: 400 },
+      );
+    }
 
     const imageBase64 = await generateWithCpa(
       plan,

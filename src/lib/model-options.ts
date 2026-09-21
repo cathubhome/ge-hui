@@ -41,7 +41,6 @@ const IMAGE_RANK: Record<string, number> = {
   "gpt-image-2.5": 94,
   "gpt-image-2": 88,
   "gpt-image-1.5": 70,
-  "gemini-3.1-flash-image": 80,
   "grok-imagine-image-quality": 100,
   "grok-imagine-image-2.0": 92,
   "grok-imagine-image": 84,
@@ -54,9 +53,10 @@ export function isChatCapable(id: string): boolean {
 export function isImageCapable(id: string): boolean {
   const s = id.toLowerCase();
   if (s.includes("video")) return false;
+  // Gemini native image models need chat image output, not /images/generations.
+  if (s.includes("gemini")) return false;
   if (s.includes("gpt-image")) return true;
   if (s.includes("grok-imagine-image")) return true;
-  if (s.includes("gemini") && s.includes("image")) return true;
   return false;
 }
 

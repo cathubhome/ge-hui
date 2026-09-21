@@ -553,7 +553,7 @@ export default function HomePage() {
               点这整张卡片，会填好歌名和歌词，再点「生成歌绘本」即可～
             </p>
           </div>
-          <span className="shrink-0 rounded-2xl border border-[#ff6b2c]/40 bg-[#fff4ee] px-4 py-2.5 text-center text-sm font-semibold text-[#c2410c] sm:self-center">
+          <span className="btn-secondary pointer-events-none shrink-0 sm:self-center">
             填入这首歌
           </span>
         </button>
@@ -657,11 +657,17 @@ export default function HomePage() {
 
           <button
             type="button"
-            className="mt-4 flex w-full items-center justify-between rounded-xl border border-[#f0e6d4] bg-[#fffdf8] px-3 py-2.5 text-left text-sm text-neutral-700"
+            className="btn-disclosure mt-4"
             onClick={() => setShowAdvanced((v) => !v)}
+            aria-expanded={showAdvanced}
           >
             <span>更多小设置</span>
-            <span className="text-neutral-400">{showAdvanced ? "收起" : "展开"}</span>
+            <span
+              className={`inline-block text-neutral-400 transition ${showAdvanced ? "rotate-180" : ""}`}
+              aria-hidden
+            >
+              ⌄
+            </span>
           </button>
           {showAdvanced ? (
             <div className="paper-card mt-3 grid gap-3 rounded-2xl p-4 sm:grid-cols-2">
@@ -704,9 +710,9 @@ export default function HomePage() {
             type="button"
             disabled={!canGenerate}
             onClick={() => void onGenerate()}
-            className="mt-5 w-full rounded-2xl bg-[#ff6b2c] px-4 py-3.5 text-sm font-semibold text-white shadow-sm transition enabled:hover:bg-[#ef5a1a] disabled:cursor-not-allowed disabled:opacity-50"
+            className="btn-primary mt-5 w-full"
           >
-            {jobBusy ? "正在生成…" : "生成歌绘本"}
+            {jobBusy ? "正在画画…" : "生成歌绘本"}
           </button>
 
           {step === "working" ? (
@@ -725,7 +731,7 @@ export default function HomePage() {
               <p>{error}</p>
               <button
                 type="button"
-                className="mt-2 text-sm font-medium text-[#ff6b2c] underline-offset-2 hover:underline"
+                className="btn-secondary mt-2"
                 disabled={jobBusy}
                 onClick={() => {
                   setError("");
@@ -815,7 +821,7 @@ export default function HomePage() {
                   <button
                     type="button"
                     onClick={onDownload}
-                    className="rounded-xl bg-[#ff6b2c] px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#ef5a1a]"
+                    className="btn-secondary"
                   >
                     下载图片
                   </button>
@@ -823,7 +829,7 @@ export default function HomePage() {
                     type="button"
                     disabled={jobBusy}
                     onClick={onNewGenerate}
-                    className="rounded-xl border border-[#f0e6d4] bg-white px-4 py-2.5 text-sm text-neutral-700 disabled:opacity-50"
+                    className="btn-quiet"
                   >
                     再画一张
                   </button>
@@ -898,7 +904,7 @@ export default function HomePage() {
           >
             <button
               type="button"
-              className="absolute right-3 top-3 z-20 rounded-full bg-[#f0e6d4] px-3 py-1.5 text-xs font-medium text-neutral-700"
+              className="btn-quiet absolute right-3 top-3 z-20 rounded-full px-3 py-1.5 text-xs"
               onClick={() => setShowTip(false)}
             >
               关闭
@@ -916,7 +922,7 @@ export default function HomePage() {
             {imageDataUrl ? (
               <button
                 type="button"
-                className="mt-3 w-full text-center text-xs font-medium text-[#ff6b2c] underline-offset-2 hover:underline"
+                className="btn-ghost mt-3 w-full text-xs"
                 onClick={() => {
                   setShowTip(false);
                   window.setTimeout(() => {
