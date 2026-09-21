@@ -1,29 +1,118 @@
 export type ModelOption = { id: string; label: string; hint?: string };
 
-export const CHAT_MODEL_OPTIONS: ModelOption[] = [
-  { id: "gemini-3.8-flash-high", label: "Gemini 3.8 Flash High", hint: "默认 · 较快" },
-  { id: "glm-5.3", label: "GLM 5.3", hint: "备选" },
-  { id: "gemini-3.7-flash-high", label: "Gemini 3.7 Flash High" },
-  { id: "claude-sonnet-4-6", label: "Claude Sonnet 4.6" },
-  { id: "gpt-5.5", label: "GPT 5.5" },
-  { id: "gpt-5.6-sol", label: "GPT 5.6 Sol" },
-  { id: "grok-4.6", label: "Grok 4.6" },
-];
+export type ModelFamily = "gemini" | "gpt" | "glm" | "grok" | "other";
 
-export const TRANSCRIBE_MODEL_OPTIONS: ModelOption[] = [
-  { id: "gemini-3.8-flash-high", label: "Gemini 3.8 Flash High", hint: "推荐听写" },
-  { id: "gemini-3.7-flash-high", label: "Gemini 3.7 Flash High" },
-  { id: "gemini-3-flash", label: "Gemini 3 Flash" },
-  { id: "gemini-pro-agent", label: "Gemini Pro Agent" },
-];
+/** Family display order requested by product. */
+export const FAMILY_ORDER: ModelFamily[] = ["gemini", "gpt", "glm", "grok"];
 
-export const IMAGE_MODEL_OPTIONS: ModelOption[] = [
-  { id: "gpt-image-2", label: "GPT Image 2", hint: "默认" },
-  { id: "gpt-image-2.5", label: "GPT Image 2.5" },
-  { id: "gpt-image-1.5", label: "GPT Image 1.5" },
-  { id: "grok-imagine-image", label: "Grok Imagine" },
-  { id: "grok-imagine-image-2.0", label: "Grok Imagine 2.0" },
-];
+export function detectFamily(id: string): ModelFamily {
+  const s = id.toLowerCase();
+  if (s.includes("gemini")) return "gemini";
+  if (s.startsWith("gpt") || s.includes("gpt-")) return "gpt";
+  if (s.includes("glm")) return "glm";
+  if (s.includes("grok")) return "grok";
+  return "other";
+}
+
+function prettyLabel(id: string): string {
+  return id
+    .split("/")
+    .pop()!
+    .replace(/-/g, " ")
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+/** Higher = better / prefer earlier within a family. Unknown ids get 0. */
+const CHAT_RANK: Record<string, number> = {
+  "gemini-3.8-flash-high": 100,
+  "gemini-3.7-flash-high": 92,
+  "gemini-3.6-flash-high": 86,
+  "gemini-3.1-pro-low": 80,
+  "gemini-3.5-flash-lite": 74,
+  "gemini-3.1-flash-lite": 68,
+  "gemini-3-flash": 62,
+  "gemini-pro-agent": 56,
+  "gpt-6-astra": 100,
+  "gpt-5.6-sol": 94,
+  "gpt-5.6-terra": 92,
+  "gpt-5.6-luna": 90,
+  "gpt-5.5": 84,
+  "glm-5.3": 100,
+  "glm-5.2": 90,
+  "grok-4.6": 100,
+  "grok-4.5": 94,
+  "grok-4.3": 88,
+  "grok-4.20-0309-reasoning": 76,
+  "grok-4.20-multi-agent-0309": 74,
+  "grok-4.20-0309-non-reasoning": 70,
+  "grok-composer-2.5-fast": 60,
+  "grok-3-mini-fast": 40,
+  "grok-3-mini": 38,
+};
+
+const IMAGE_RANK: Record<string, number> = {
+  "gpt-image-2.5-sunburst": 100,
+  "gpt-image-2.5-flare": 98,
+  "gpt-image-2.5": 94,
+  "gpt-image-2": 88,
+  "gpt-image-1.5": 70,
+  "gemini-3.1-flash-image": 80,
+  "grok-imagine-image-quality": 100,
+  "grok-imagine-image-2.0": 92,
+  "grok-imagine-image": 84,
+};
+
+export function isChatCapable(id: string): boolean {
+  const s = id.toLowerCase();
+  if (detectFamily(s) === "other") return false;
+  if (s.includes("image") || s.includes("video") || s.includes("imagine")) return false;
+  if (s.includes("codex") || s.includes("openrouter") || s.includes("oss")) return false;
+  if (s.includes("build-")) return false;
+  // Claude intentionally excluded from product family order
+  if (s.includes("claude")) return false;
+  return true;
+}
+
+export function isImageCapable(id: string): boolean {
+  const s = id.toLowerCase();
+  if (s.includes("video")) return false;
+  if (s.includes("gpt-image")) return true;
+  if (s.includes("grok-imagine-image")) return true;
+  if (s.includes("gemini") && s.includes("image")) return true;
+  return false;
+}
+
+export function toOption(id: string, kind: "chat" | "image"): ModelOption {
+  const rank = kind === "chat" ? CHAT_RANK[id] : IMAGE_RANK[id];
+  const hint = rank && rank >= 90 ? "推荐" : undefined;
+  return { id, label: prettyLabel(id), hint };
+}
+
+export function sortModelIds(ids: string[], kind: "chat" | "image"): string[] {
+  const rankMap = kind === "chat" ? CHAT_RANK : IMAGE_RANK;
+  const familyIndex = (f: ModelFamily) => {
+    const i = FAMILY_ORDER.indexOf(f);
+    return i === -1 ? 99 : i;
+  };
+  return [...ids].sort((a, b) => {
+    const fa = detectFamily(a);
+    const fb = detectFamily(b);
+    if (fa !== fb) return familyIndex(fa) - familyIndex(fb);
+    const ra = rankMap[a] ?? 0;
+    const rb = rankMap[b] ?? 0;
+    if (ra !== rb) return rb - ra;
+    return a.localeCompare(b);
+  });
+}
+
+export function pickDefault(ids: string[], preferred?: string): string {
+  if (preferred && ids.includes(preferred)) return preferred;
+  return ids[0] || "";
+}
+
+/** Curated seed list — only shown when also present in live /models. */
+export const CHAT_MODEL_CANDIDATES = Object.keys(CHAT_RANK);
+export const IMAGE_MODEL_CANDIDATES = Object.keys(IMAGE_RANK);
 
 export const FREE_TRANSCRIBE_SITES = [
   {
