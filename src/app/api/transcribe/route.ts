@@ -47,7 +47,7 @@ export async function POST(req: NextRequest) {
     const text = String(data?.choices?.[0]?.message?.content || "").trim();
     if (!text) {
       return NextResponse.json(
-        { error: "转写结果为空，请改用粘贴歌词或上传 PDF" },
+        { error: "这次没听清楚歌词，可以粘贴文字或换一段更清晰的音频再试～" },
         { status: 422 },
       );
     }

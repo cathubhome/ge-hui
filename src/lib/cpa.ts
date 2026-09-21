@@ -10,7 +10,7 @@ export function getCpaApiKey(): string | undefined {
 export function requireCpaApiKey(): string {
   const key = getCpaApiKey();
   if (!key) {
-    throw new Error("缺少 CPA_API_KEY。请在 .env.local 配置后重试。");
+    throw new Error("还没配置服务密钥，请先让管理员配置好哦～");
   }
   return key;
 }
