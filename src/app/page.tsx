@@ -463,7 +463,7 @@ export default function HomePage() {
     setCharacterDescription("");
     setNeedsVision(false);
     setPendingPdfBase64(null);
-    setUploadTip("");
+    setUploadTip("已填入演示儿歌，可以直接点「生成歌绘本」啦～");
   }
 
   function onDownload() {
@@ -531,14 +531,18 @@ export default function HomePage() {
         </div>
       </header>
 
-      {/* Compact demo */}
+      {/* Compact demo — whole card clickable */}
       <section className="paper-card mb-6 overflow-hidden rounded-3xl">
-        <div className="flex flex-col gap-3 p-3 sm:flex-row sm:items-center sm:gap-4 sm:p-4">
+        <button
+          type="button"
+          onClick={tryDemoSong}
+          className="flex w-full cursor-pointer flex-col gap-3 p-3 text-left transition hover:bg-[#fff4ee]/50 sm:flex-row sm:items-center sm:gap-4 sm:p-4"
+        >
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src="/samples/ge-hui-final-sample.png"
             alt="歌绘成品示例：Head Shoulders Knees and Toes"
-            className="h-24 w-full shrink-0 rounded-2xl border border-[#f0e6d4] object-cover object-top sm:h-28 sm:w-40"
+            className="pointer-events-none h-24 w-full shrink-0 rounded-2xl border border-[#f0e6d4] object-cover object-top sm:h-28 sm:w-40"
           />
           <div className="min-w-0 flex-1">
             <p className="text-xs font-semibold tracking-wide text-[#ff6b2c]">成品小样</p>
@@ -546,17 +550,13 @@ export default function HomePage() {
               生成后的绘本页可以长这样
             </p>
             <p className="mt-1 text-xs leading-relaxed text-neutral-500">
-              点一下，会填好歌名和歌词，你可以直接生成试试～
+              点这整张卡片，会填好歌名和歌词，再点「生成歌绘本」即可～
             </p>
           </div>
-          <button
-            type="button"
-            onClick={tryDemoSong}
-            className="shrink-0 rounded-2xl border border-[#ff6b2c]/40 bg-[#fff4ee] px-4 py-2.5 text-sm font-semibold text-[#c2410c] transition hover:bg-[#ffe8da] sm:self-center"
-          >
-            用这首歌试一试
-          </button>
-        </div>
+          <span className="shrink-0 rounded-2xl border border-[#ff6b2c]/40 bg-[#fff4ee] px-4 py-2.5 text-center text-sm font-semibold text-[#c2410c] sm:self-center">
+            填入这首歌
+          </span>
+        </button>
       </section>
 
       {/* Two-column shell: form | sticky stage */}
