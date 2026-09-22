@@ -900,18 +900,23 @@ export default function HomePage() {
                 ) : null}
                 <div
                   id="ge-hui-tip"
-                  className="mt-4 rounded-2xl border-2 border-[#ff6b2c]/30 bg-[#fff4ee]/70 p-3 text-center"
+                  className="mt-5 rounded-2xl border border-[#f0e6d4] bg-white p-4 text-center shadow-sm"
                 >
-                  <p className="font-display text-base text-neutral-800">喜欢这页？请杯奶茶支持一下～</p>
-                  <p className="mt-1 text-[11px] text-neutral-500">
-                    自愿打赏 · 码中间头像是微信自带的
+                  <p className="font-display text-base font-bold text-neutral-800">
+                    请作者喝杯奶茶 🧋
+                  </p>
+                  <p className="mt-1 text-xs text-neutral-500">
+                    喜欢歌绘就好啦 · 微信扫码自愿打赏
                   </p>
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
-                    src="/samples/ge-hui-tip-card.png"
+                    src="/samples/ge-hui-tip-qr-clean.png"
                     alt="请杯奶茶打赏码"
-                    className="mx-auto mt-3 w-full max-w-[260px] rounded-2xl shadow-sm"
+                    className="mx-auto mt-3 h-52 w-52 rounded-2xl border border-neutral-200/60 bg-white p-2.5 shadow-sm"
                   />
+                  <p className="mt-2 text-[11px] text-neutral-400">
+                    长按或扫一扫，支持歌绘持续优化～
+                  </p>
                 </div>
               </div>
             ) : null}
@@ -951,32 +956,35 @@ export default function HomePage() {
             onClick={() => setShowTip(false)}
           />
           <div
-            className="relative z-10 max-h-[85vh] w-full max-w-sm overflow-y-auto rounded-3xl border-2 border-[#ff6b2c]/40 bg-[#fffdf8] p-4 shadow-xl"
+            className="relative z-10 max-h-[85vh] w-full max-w-xs overflow-y-auto rounded-3xl border border-[#f0e6d4] bg-white p-5 shadow-2xl text-center"
             role="dialog"
             aria-modal="true"
             aria-label="请杯奶茶"
           >
             <button
               type="button"
-              className="btn-quiet absolute right-3 top-3 z-20 rounded-full px-3 py-1.5 text-xs"
+              className="btn-quiet absolute right-3 top-3 z-20 rounded-full px-3 py-1 text-xs"
               onClick={() => setShowTip(false)}
             >
               关闭
             </button>
-            <p className="pr-14 text-center font-display text-lg text-neutral-800">请杯奶茶</p>
-            <p className="mt-1 text-center text-xs text-neutral-500">
-              喜欢歌绘就好 · 扫一扫自愿打赏 · Esc 也可关闭
+            <p className="font-display text-lg font-bold text-neutral-800">请作者喝杯奶茶 🧋</p>
+            <p className="mt-1 text-xs text-neutral-500">
+              喜欢歌绘就好啦 · 微信扫码自愿打赏
             </p>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              src="/samples/ge-hui-tip-card.png"
+              src="/samples/ge-hui-tip-qr-clean.png"
               alt="请杯奶茶打赏码"
-              className="mx-auto mt-3 w-full max-w-[260px] rounded-2xl"
+              className="mx-auto mt-3.5 h-52 w-52 rounded-2xl border border-neutral-200/60 bg-white p-2.5 shadow-sm"
             />
+            <p className="mt-2.5 text-xs text-neutral-400">
+              长按或扫一扫 · Esc 键也可关闭
+            </p>
             {imageDataUrl ? (
               <button
                 type="button"
-                className="btn-ghost mt-3 w-full text-xs"
+                className="btn-ghost mt-2 w-full text-xs"
                 onClick={() => {
                   setShowTip(false);
                   window.setTimeout(() => {

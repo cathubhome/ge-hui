@@ -119,12 +119,12 @@ REMOVE:
 - logos, trademarks, brand names (PLAYTIME etc.), websites, QR codes, page numbers, publisher badges
 
 ADD once (not in a grid): title "${plan.titleEn}" / "${plan.titleZh}"
-Small parent tip: "${plan.instructionZh}"
 
 HARD FORBIDDEN:
 - 8-grid, 2x4, 4x2, numbered cells 1-8, circular frames, worksheet, exercise cards
 - Head Shoulders layout, 8 poses of a single mascot
 - replacing book characters with a different cute rooster/child
+- adult teaching instructions, lesson plans, parent tips, or "引导语" on the artwork (do NOT draw any lightbulb banner or instructional text like "引导孩子们观察...")
 
 ${charLine}`;
 }
@@ -139,10 +139,11 @@ function buildPrompt(plan: ScenePlan, characterDescription: string): string {
 Layout can vary with the song (comic strip, big hero + lyric card, or 2x4 circles only if it is a body-part rhyme).
 - Landscape page, child-friendly, high contrast, bilingual labels.
 - Title "${plan.titleEn}" / "${plan.titleZh}".
-- A lyrics/instruction card: "${plan.instructionZh}"
+- A lyrics card with the song lyrics.
 - ${charLine}
 - Panels: ${panelLine(plan)}
 - Do NOT default to Head Shoulders Knees & Toes worksheet look unless the lyrics are that song.
+- NO adult teaching instructions, lesson plans, parent tips, or "引导语" on the artwork (keep the picture book clean and kid-friendly).
 - NO photorealism, NO watermarks, NO social-media logos.
 
 Lyric excerpt:

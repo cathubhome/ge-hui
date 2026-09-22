@@ -68,7 +68,6 @@ export function buildPictureBookSvg(plan: ScenePlan): string {
   <text x="48" y="190" font-family="Arial, 'PingFang SC', 'Microsoft YaHei', sans-serif" font-size="15" fill="#333">
     ${lyricLines}
   </text>
-  <text x="48" y="410" font-family="Arial, 'PingFang SC', 'Microsoft YaHei', sans-serif" font-size="14" fill="#666">${escapeXml(plan.instructionZh)}</text>
 
   ${circles}
 

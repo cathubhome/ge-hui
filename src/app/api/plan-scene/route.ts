@@ -113,7 +113,7 @@ async function planWithCpa(
       messages: [
         {
           role: "system",
-          content: `你是儿童教育绘本编剧。根据歌词输出 JSON：titleEn, titleZh, lyricExcerpt, instructionZh, characterDescription, layout, cast, sceneLayout, panels(每项含 labelEn,labelZh,action)。
+          content: `你是儿童教育绘本编剧。根据歌词输出 JSON：titleEn, titleZh, lyricExcerpt, instructionZh, characterDescription, layout, cast, sceneLayout, panels(每项含 labelEn,labelZh,action)。注意：instructionZh 仅作为幕后元数据参考，后续出图绝不绘制成画内教案引导语。
 无绘本参考时 panels 可以为 8；有绘本合页时 layout=spread，panels 0-4 条即可，禁止八宫格。
 ${songTitle ? `歌名提示：${songTitle}` : ""}${charHint}`,
         },
