@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { cpaFetch, getCpaApiKey, imageModel as defaultImageModel } from "@/lib/cpa";
+import { cpaFetch, getCpaApiKey, imageModel as defaultImageModel, chatModels } from "@/lib/cpa";
 import type { ScenePlan } from "@/lib/types";
 import { CUTE_ERRORS } from "@/lib/model-options";
 
@@ -23,12 +23,14 @@ export async function POST(req: NextRequest) {
       body.characterDescription || plan?.characterDescription || "",
     ).trim();
     const referenceImageDataUrls = Array.isArray(body.referenceImageDataUrls)
-      ? body.referenceImageDataUrls.filter(
-          (u) => typeof u === "string" && u.startsWith("data:image"),
-        ).slice(0, 2)
+      ? body.referenceImageDataUrls
+          .filter((u) => typeof u === "string" && u.startsWith("data:image"))
+          .slice(0, 2)
       : [];
 
-    if (!plan?.panels?.length) {
+    const isSpread =
+      referenceImageDataUrls.length > 0 || plan?.layout === "spread";
+    if (!plan || (!isSpread && !plan.panels?.length)) {
       return NextResponse.json({ error: "缺少场景规划" }, { status: 400 });
     }
     if (!getCpaApiKey()) {
@@ -50,17 +52,18 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const imageBase64 = await generateWithCpa(
+    const generated = await generateWithCpa(
       plan,
       selectedImageModel,
       characterDescription,
       referenceImageDataUrls,
     );
     return NextResponse.json({
-      imageDataUrl: `data:image/png;base64,${imageBase64}`,
+      imageDataUrl: `data:image/png;base64,${generated.b64}`,
       mode: "ai",
       model: selectedImageModel,
-      usedReferences: referenceImageDataUrls.length,
+      usedReferences: generated.usedReferences,
+      drawMode: generated.drawMode,
     });
   } catch (e) {
     const cute =
@@ -74,35 +77,75 @@ export async function POST(req: NextRequest) {
   }
 }
 
-function buildPrompt(
-  plan: ScenePlan,
-  characterDescription: string,
-): string {
-  const panelDesc = plan.panels
+function panelLine(plan: ScenePlan): string {
+  return (plan.panels || [])
     .slice(0, 8)
     .map(
       (p, i) =>
         `${i + 1}) label "${p.labelEn}" / "${p.labelZh}", action: ${p.action}`,
     )
     .join("; ");
+}
 
+function dataUrlToB64(u: string): string {
+  return u.replace(/^data:image\/\w+;base64,/, "");
+}
+
+function buildMergePrompt(plan: ScenePlan, characterDescription: string): string {
+  const cast = (plan.cast || []).filter(Boolean).join(", ");
+  const scene = String(plan.sceneLayout || "").trim();
+  const charLine = [
+    characterDescription
+      ? `Characters from the book: ${characterDescription}`
+      : "Keep every cartoon character from the first reference image.",
+    cast ? `Cast that must all appear: ${cast}.` : "",
+    scene ? `Composition to keep: ${scene}` : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
+
+  return `EDIT the first attached image. It is the MAIN picture-book spread (PDF page N-1).
+
+Produce ONE landscape children's book spread (not a poster, not a worksheet).
+
+KEEP:
+- The same open double-page composition (characters sharing one sky/ground, speech bubbles OK)
+- ALL cartoon characters from the reference — gather every animal/person onto this page
+- Same art tone: flat vector, simple shapes, same palette and line weight
+- Original English dialogue/lyrics (do not rewrite):
+${(plan.lyricExcerpt || "").slice(0, 360)}
+
+REMOVE:
+- logos, trademarks, brand names (PLAYTIME etc.), websites, QR codes, page numbers, publisher badges
+
+ADD once (not in a grid): title "${plan.titleEn}" / "${plan.titleZh}"
+Small parent tip: "${plan.instructionZh}"
+
+HARD FORBIDDEN:
+- 8-grid, 2x4, 4x2, numbered cells 1-8, circular frames, worksheet, exercise cards
+- Head Shoulders layout, 8 poses of a single mascot
+- replacing book characters with a different cute rooster/child
+
+${charLine}`;
+}
+
+function buildPrompt(plan: ScenePlan, characterDescription: string): string {
   const charLine = characterDescription
-    ? `THE SAME character in ALL 8 circles must match this description (critical): ${characterDescription}.`
-    : "THE SAME cute simple child character in all 8 circles, only poses change.";
+    ? `THE SAME character in ALL panels must match this description (critical): ${characterDescription}.`
+    : "THE SAME cute simple child character in all panels, only poses change.";
 
   return `Create ONE educational children's picture-book PAGE (not a random art poster).
 
-MUST match this exact layout:
-- Landscape page, clean flat vector / paper-cut collage style, soft pastel rolling hills background (light blue, yellow, teal).
-- Top-left: bold English title "${plan.titleEn}" and Chinese subtitle "${plan.titleZh}".
-- Left side: rounded white card titled "SING & MOVE" with short lyric excerpt and instruction "${plan.instructionZh}".
-- Main area: STRICT 2 rows x 4 columns = 8 colorful circular frames (orange, pink, purple, teal alternating).
+Layout can vary with the song (comic strip, big hero + lyric card, or 2x4 circles only if it is a body-part rhyme).
+- Landscape page, child-friendly, high contrast, bilingual labels.
+- Title "${plan.titleEn}" / "${plan.titleZh}".
+- A lyrics/instruction card: "${plan.instructionZh}"
 - ${charLine}
-- Above each circle: bilingual labels. Panels: ${panelDesc}.
-- Educational nursery-rhyme worksheet look (like Head Shoulders Knees & Toes), high contrast, kawaii, friendly.
-- NO photorealism, NO cinematic portrait, NO single hero in a forest/meadow filling the page, NO watermarks, NO social-media logos, NO extra slogan stickers cluttering the page.
+- Panels: ${panelLine(plan)}
+- Do NOT default to Head Shoulders Knees & Toes worksheet look unless the lyrics are that song.
+- NO photorealism, NO watermarks, NO social-media logos.
 
-Lyric excerpt for the card (short):
+Lyric excerpt:
 ${(plan.lyricExcerpt || "").slice(0, 220)}`;
 }
 
@@ -111,60 +154,187 @@ async function generateWithCpa(
   model: string,
   characterDescription: string,
   referenceImageDataUrls: string[],
-): Promise<string> {
-  const prompt = buildPrompt(plan, characterDescription);
+): Promise<{ b64: string; usedReferences: number; drawMode: string }> {
+  const hasRefs = referenceImageDataUrls.length > 0;
+  const useSpread = hasRefs || plan.layout === "spread";
+  const prompt = useSpread
+    ? buildMergePrompt(plan, characterDescription)
+    : buildPrompt(plan, characterDescription);
 
-  // Try reference-aware payloads first (gateway-dependent), then plain generations.
-  const attempts: Array<{ path: string; body: Record<string, unknown> }> = [];
+  if (hasRefs) {
+    try {
+      const b64 = await generateWithReferences(
+        prompt,
+        model,
+        referenceImageDataUrls,
+      );
+      if (b64) {
+        return {
+          b64,
+          usedReferences: referenceImageDataUrls.length,
+          drawMode: "edit",
+        };
+      }
+    } catch {
+      // try chat-edit next
+    }
 
-  if (referenceImageDataUrls.length) {
-    const refs = referenceImageDataUrls.map((u) =>
-      u.replace(/^data:image\/\w+;base64,/, ""),
-    );
-    attempts.push({
-      path: "/images/generations",
-      body: {
-        model,
-        prompt,
-        size: "1536x1024",
-        // Common OpenAI-compatible reference field names
-        image: referenceImageDataUrls[0],
-        images: referenceImageDataUrls,
-        input_images: referenceImageDataUrls,
-        reference_images: referenceImageDataUrls,
-      },
-    });
-    attempts.push({
-      path: "/images/edits",
-      body: {
-        model,
-        prompt,
-        size: "1536x1024",
-        image: refs[0],
-        images: refs,
-      },
-    });
+    try {
+      const b64 = await generateWithChatEdit(prompt, referenceImageDataUrls);
+      if (b64) {
+        return {
+          b64,
+          usedReferences: referenceImageDataUrls.length,
+          drawMode: "chat-edit",
+        };
+      }
+    } catch {
+      // last resort: keep the N-1 spread rather than invent an 8-grid
+    }
+
+    return {
+      b64: dataUrlToB64(referenceImageDataUrls[0]),
+      usedReferences: referenceImageDataUrls.length,
+      drawMode: "reference-spread",
+    };
   }
 
-  attempts.push({
-    path: "/images/generations",
-    body: {
-      model,
-      prompt,
-      size: "1536x1024",
-    },
+  const b64 = await callImageApi("/images/generations", {
+    model,
+    prompt,
+    size: "1536x1024",
   });
+  if (b64) return { b64, usedReferences: 0, drawMode: "text" };
+  throw new Error("绘图服务忙不过来，请稍后再试～");
+}
 
-  let lastErr = "绘图服务忙不过来，请稍后再试～";
-  for (const attempt of attempts) {
+async function generateWithReferences(
+  prompt: string,
+  model: string,
+  refs: string[],
+): Promise<string> {
+  const primary = refs[0];
+  const extra = refs[1];
+  const raws = refs.map((u) => dataUrlToB64(u));
+  const models = Array.from(new Set([model, "gpt-image-2", "gpt-image-1.5"].filter(Boolean)));
+
+  for (const m of models) {
     try {
-      const b64 = await callImageApi(attempt.path, attempt.body);
+      const form = new FormData();
+      form.set("model", m);
+      form.set("prompt", prompt);
+      form.set("size", "1536x1024");
+      form.append(
+        "image",
+        new Blob([new Uint8Array(Buffer.from(raws[0], "base64"))], {
+          type: "image/png",
+        }),
+        "spread.png",
+      );
+      const b64 = await callImageApiForm("/images/edits", form);
       if (b64) return b64;
-    } catch (e) {
-      lastErr = e instanceof Error ? e.message : lastErr;
+    } catch {
+      // next
     }
   }
-  throw new Error(lastErr);
+
+  const payloads: Array<Record<string, unknown>> = [];
+  for (const m of models) {
+    payloads.push({ model: m, prompt, size: "1536x1024", image: primary });
+    payloads.push({
+      model: m,
+      prompt,
+      size: "1536x1024",
+      images: extra ? [primary, extra] : [primary],
+    });
+    payloads.push({
+      model: m,
+      prompt,
+      size: "1536x1024",
+      input_images: extra ? [primary, extra] : [primary],
+    });
+  }
+  for (const body of payloads) {
+    try {
+      const b64 = await callImageApi("/images/generations", body);
+      if (b64) return b64;
+    } catch {
+      // next payload
+    }
+  }
+  throw new Error("skip:ref");
+}
+
+async function generateWithChatEdit(
+  prompt: string,
+  refs: string[],
+): Promise<string> {
+  const model =
+    chatModels().find((id) => id.toLowerCase().includes("gemini")) ||
+    chatModels()[0];
+  if (!model) throw new Error("skip:chat");
+
+  const content: Array<Record<string, unknown>> = [
+    {
+      type: "text",
+      text: `${prompt}\n\nGenerate the edited landscape picture as an image. Do not describe it in words.`,
+    },
+  ];
+  for (const url of refs) {
+    content.push({ type: "image_url", image_url: { url } });
+  }
+
+  const res = await cpaFetch("/chat/completions", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      model,
+      temperature: 0.2,
+      messages: [{ role: "user", content }],
+    }),
+  });
+  if (!res.ok) {
+    await res.text().catch(() => "");
+    throw new Error("skip:chat");
+  }
+  const data = (await res.json()) as Record<string, unknown>;
+  const b64 = readChatImage(data);
+  if (!b64) throw new Error("skip:chat");
+  return b64;
+}
+
+function readChatImage(data: Record<string, unknown>): string | null {
+  const choices = data.choices as Array<{ message?: Record<string, unknown> }> | undefined;
+  const msg = choices?.[0]?.message;
+  if (msg) {
+    const content = msg.content;
+    if (typeof content === "string") {
+      const m = /data:image\/\w+;base64,([A-Za-z0-9+/=]+)/.exec(content);
+      if (m) return m[1];
+    }
+    if (Array.isArray(content)) {
+      for (const part of content as Array<Record<string, unknown>>) {
+        const inline = part.inline_data as { data?: string } | undefined;
+        if (inline?.data) return inline.data;
+        const img = part.image_url as { url?: string } | undefined;
+        if (img?.url?.startsWith("data:")) return dataUrlToB64(img.url);
+        if (typeof part.b64_json === "string") return part.b64_json;
+      }
+    }
+    const images = msg.images as Array<{ image_url?: { url?: string }; b64_json?: string }> | undefined;
+    if (images?.[0]?.b64_json) return images[0].b64_json;
+    if (images?.[0]?.image_url?.url?.startsWith("data:")) {
+      return dataUrlToB64(images[0].image_url.url);
+    }
+  }
+  const rows = data.data as Array<{ b64_json?: string; url?: string }> | undefined;
+  if (rows?.[0]?.b64_json) return rows[0].b64_json;
+  return null;
+}
+
+async function callImageApiForm(path: string, form: FormData): Promise<string> {
+  const res = await cpaFetch(path, { method: "POST", body: form });
+  return readImageResponse(res);
 }
 
 async function callImageApi(
@@ -176,10 +346,12 @@ async function callImageApi(
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
+  return readImageResponse(res);
+}
 
+async function readImageResponse(res: Response): Promise<string> {
   if (!res.ok) {
     const t = await res.text().catch(() => "");
-    // Unknown field / not supported — let caller try next strategy
     if (
       res.status === 400 ||
       res.status === 404 ||

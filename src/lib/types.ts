@@ -12,6 +12,12 @@ export type ScenePlan = {
   panels: ScenePanel[];
   /** English description of the PDF/source character for consistent AI drawing. */
   characterDescription?: string;
+  /** spread = picture-book merge; grid = worksheet-style panels */
+  layout?: "spread" | "grid";
+  /** All cartoon characters to keep from the source book. */
+  cast?: string[];
+  /** Composition of the N-1 / main reference spread. */
+  sceneLayout?: string;
 };
 
 export type GenerateMode = "canvas" | "openai-image" | "ai";

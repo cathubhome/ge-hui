@@ -94,9 +94,6 @@ function loadPdfjs(): Pdfjs {
   return pdfjs;
 }
 
-/**
- * Rasterize the first N PDF pages to PNG data URLs for multimodal vision.
- */
 function toPlainUint8Array(data: Uint8Array | ArrayBuffer): Uint8Array {
   if (data instanceof ArrayBuffer) return new Uint8Array(data);
   // Node Buffer is a Uint8Array subclass; pdfjs rejects Buffer specifically.
@@ -104,15 +101,96 @@ function toPlainUint8Array(data: Uint8Array | ArrayBuffer): Uint8Array {
   return Uint8Array.from(data);
 }
 
-export async function rasterizePdfPages(
+type PdfDoc = {
+  numPages: number;
+  getPage: (n: number) => Promise<{
+    getViewport: (o: { scale: number }) => { width: number; height: number };
+    render: (o: Record<string, unknown>) => { promise: Promise<void> };
+  }>;
+};
+
+async function renderPdfPage(
+  doc: PdfDoc,
+  canvasFactory: NapiCanvasFactory,
+  pageNumber: number,
+  maxEdge: number,
+): Promise<RasterPage> {
+  const page = await doc.getPage(pageNumber);
+  const base = page.getViewport({ scale: 1 });
+  const scale = Math.min(1.5, maxEdge / Math.max(base.width, base.height, 1));
+  const viewport = page.getViewport({ scale: Math.max(scale, 0.5) });
+  const canvas = createCanvas(
+    Math.ceil(viewport.width),
+    Math.ceil(viewport.height),
+  );
+  const ctx = canvas.getContext("2d");
+  await page
+    .render({
+      canvasContext: ctx,
+      viewport,
+      canvas,
+      canvasFactory,
+    })
+    .promise;
+  const buf = canvas.toBuffer("image/png");
+  let dataUrl = "data:image/png;base64," + buf.toString("base64");
+  dataUrl = await downscaleDataUrl(dataUrl, maxEdge);
+  return {
+    page: pageNumber,
+    dataUrl,
+    width: canvas.width,
+    height: canvas.height,
+  };
+}
+
+export type RasterizePdfOpts = {
+  maxPages?: number;
+  maxEdge?: number;
+  pageNumbers?: number[];
+};
+
+/**
+ * Rasterize selected 1-based pages. If pageNumbers is omitted, uses the first maxPages.
+ */
+export async function inspectPdfPages(
   pdfBytes: Uint8Array | ArrayBuffer,
-  opts?: { maxPages?: number; maxEdge?: number },
-): Promise<RasterPage[]> {
+  opts?: RasterizePdfOpts,
+): Promise<{ totalPages: number; pages: RasterPage[] }> {
   const maxPages = opts?.maxPages ?? MAX_PAGES;
   const maxEdge = opts?.maxEdge ?? TARGET_MAX_EDGE;
   const pdfjs = loadPdfjs();
   const canvasFactory = new NapiCanvasFactory();
 
+  const doc = (await pdfjs.getDocument({
+    data: toPlainUint8Array(pdfBytes),
+    useSystemFonts: true,
+    disableFontFace: true,
+    isEvalSupported: false,
+    disableWorker: true,
+    canvasFactory,
+  }).promise) as PdfDoc;
+
+  const totalPages = Number(doc.numPages) || 0;
+  if (totalPages < 1) return { totalPages: 0, pages: [] };
+
+  const wanted = opts?.pageNumbers?.length
+    ? [...new Set(opts.pageNumbers)]
+        .filter((n) => n >= 1 && n <= totalPages)
+        .sort((a, b) => a - b)
+    : Array.from({ length: Math.min(totalPages, maxPages) }, (_, i) => i + 1);
+
+  const pages: RasterPage[] = [];
+  for (const i of wanted) {
+    pages.push(await renderPdfPage(doc, canvasFactory, i, maxEdge));
+  }
+  return { totalPages, pages };
+}
+
+export async function readPdfPageCount(
+  pdfBytes: Uint8Array | ArrayBuffer,
+): Promise<number> {
+  const pdfjs = loadPdfjs();
+  const canvasFactory = new NapiCanvasFactory();
   const doc = await pdfjs.getDocument({
     data: toPlainUint8Array(pdfBytes),
     useSystemFonts: true,
@@ -121,42 +199,13 @@ export async function rasterizePdfPages(
     disableWorker: true,
     canvasFactory,
   }).promise;
-
-  const pageCount = Math.min(Number(doc.numPages) || 0, maxPages);
-  if (pageCount < 1) return [];
-
-  const pages: RasterPage[] = [];
-  for (let i = 1; i <= pageCount; i++) {
-    const page = await doc.getPage(i);
-    const base = page.getViewport({ scale: 1 });
-    const scale = Math.min(
-      1.5,
-      maxEdge / Math.max(base.width, base.height, 1),
-    );
-    const viewport = page.getViewport({ scale: Math.max(scale, 0.5) });
-    const canvas = createCanvas(
-      Math.ceil(viewport.width),
-      Math.ceil(viewport.height),
-    );
-    const ctx = canvas.getContext("2d");
-    await page
-      .render({
-        canvasContext: ctx,
-        viewport,
-        canvas,
-        canvasFactory,
-      })
-      .promise;
-    const buf = canvas.toBuffer("image/png");
-    let dataUrl = "data:image/png;base64," + buf.toString("base64");
-    dataUrl = await downscaleDataUrl(dataUrl, maxEdge);
-    pages.push({
-      page: i,
-      dataUrl,
-      width: canvas.width,
-      height: canvas.height,
-    });
-  }
+  return Number(doc.numPages) || 0;
+}
+export async function rasterizePdfPages(
+  pdfBytes: Uint8Array | ArrayBuffer,
+  opts?: RasterizePdfOpts,
+): Promise<RasterPage[]> {
+  const { pages } = await inspectPdfPages(pdfBytes, opts);
   return pages;
 }
 

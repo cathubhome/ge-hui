@@ -11,7 +11,8 @@ export const maxDuration = 30;
 
 /**
  * Light PDF path only: text-layer extract OR detect needsVision.
- * Never calls Gemini / vision here — heavy work waits for Generate (job).
+ * Multi-page PDFs are treated as picture books even if a text layer exists,
+ * so generate still uses page 1 / N-1 as the main artwork.
  */
 export async function POST(req: NextRequest) {
   try {
@@ -39,24 +40,28 @@ export async function POST(req: NextRequest) {
     const pages = parsed.pages || 0;
     const text = usableLyricsText((parsed.text || "").trim());
     const signal = contentSignal(text);
+    const pictureBook = pages >= 2;
 
-    if (text && signal >= TEXT_LAYER_MIN_SIGNAL) {
+    if (pictureBook || !(text && signal >= TEXT_LAYER_MIN_SIGNAL)) {
       return NextResponse.json({
-        text,
+        text: "",
         pages,
         extractedChars: signal,
-        mode: "text",
-        needsVision: false,
+        mode: "needs_vision",
+        needsVision: true,
+        pictureBook,
+        tip: pictureBook
+          ? "这份是卡通绘本。生成时会用第 1 页和倒数第二页当主图，去掉商标二维码，把角色汇成一张歌绘～"
+          : "这份绘本的字印在图上。生成时会看最后一页歌词和角色页，再合成一张歌绘～",
       });
     }
 
     return NextResponse.json({
-      text: "",
+      text,
       pages,
       extractedChars: signal,
-      mode: "needs_vision",
-      needsVision: true,
-      tip: "这份 PDF 字印在图上。文件已留在浏览器，点「生成歌绘本」时再帮你看图读词～",
+      mode: "text",
+      needsVision: false,
     });
   } catch {
     return NextResponse.json(

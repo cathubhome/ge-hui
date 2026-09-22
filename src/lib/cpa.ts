@@ -39,6 +39,9 @@ export async function cpaFetch(path: string, init: RequestInit = {}): Promise<Re
   headers.set("Authorization", `Bearer ${key}`);
   headers.set("User-Agent", BROWSER_UA);
   if (!headers.has("Accept")) headers.set("Accept", "application/json");
+  if (typeof FormData !== "undefined" && init.body instanceof FormData) {
+    headers.delete("Content-Type");
+  }
   return fetch(`${base}${path.startsWith("/") ? path : `/${path}`}`, {
     ...init,
     headers,
