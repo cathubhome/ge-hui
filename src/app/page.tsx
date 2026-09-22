@@ -142,6 +142,8 @@ export default function HomePage() {
   const [needsVision, setNeedsVision] = useState(false);
   const [pendingPdfBase64, setPendingPdfBase64] = useState<string | null>(null);
   const [uploadTip, setUploadTip] = useState("");
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadProgressText, setUploadProgressText] = useState("");
   const [jobId, setJobId] = useState<string | null>(null);
   const [jobStatus, setJobStatus] = useState<JobStatus | "">("");
   const [dragOver, setDragOver] = useState(false);
@@ -150,7 +152,10 @@ export default function HomePage() {
   const resumeTried = useRef(false);
 
   const jobBusy =
-    jobStatus === "queued" || jobStatus === "running" || step === "working";
+    jobStatus === "queued" ||
+    jobStatus === "running" ||
+    step === "working" ||
+    isUploading;
 
   const canGenerate = useMemo(() => {
     if (jobBusy) return false;
@@ -323,21 +328,23 @@ export default function HomePage() {
     if (!file) return;
     if (jobBusy) return;
     setError("");
-    setFileName(file.name);
+    const sizeMb = (file.size / (1024 * 1024)).toFixed(1);
+    setFileName(`${file.name} (${sizeMb}MB)`);
     setUploadTip("");
     setNeedsVision(false);
     setPendingPdfBase64(null);
     setCharacterDescription("");
     setImageDataUrl("");
     setPlan(null);
+    setIsUploading(true);
+    setUploadProgressText(`正在上传并解析 ${file.name} (${sizeMb}MB)…`);
 
     try {
       if (file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf")) {
         // New PDF should not keep the previous song's title/lyrics.
         setSongTitle("");
         setLyrics("");
-        // Light path only — no Gemini on upload.
-        setProgressLabel("正在读你的文件…");
+        setUploadProgressText("正在翻阅绘本页面，识别歌词与角色页…");
         const form = new FormData();
         form.append("file", file);
         const res = await fetch("/api/extract-pdf", { method: "POST", body: form });
@@ -352,30 +359,30 @@ export default function HomePage() {
           throw new Error(data.error || "读 PDF 没成功");
         }
         if (data.needsVision || data.mode === "needs_vision") {
+          setUploadProgressText("绘本已识别，正在载入画板…");
           const b64 = await fileToBase64(file);
           setPendingPdfBase64(b64);
           setNeedsVision(true);
           setLyrics("");
           setUploadTip(
             data.tip ||
-              "这份是卡通绘本。生成时会用第 1 页和倒数第二页当主图，去掉商标二维码，把角色汇成一张歌绘～",
+              "✨ 绘本已就绪！生成时会自动定位倒数第二页角色定妆与最后一页歌词，合成一张精美歌绘～",
           );
-          setProgressLabel("");
-          setStep("idle");
+          setIsUploading(false);
+          setUploadProgressText("");
           return;
         }
         setLyrics(data.text || "");
         setNeedsVision(false);
         setPendingPdfBase64(null);
-        setUploadTip("歌词已经读出来了，可以点生成啦～");
-        setProgressLabel("");
-        setStep("idle");
+        setUploadTip("✨ 歌词文本已提取就绪，可以随时点「生成歌绘本」啦～");
+        setIsUploading(false);
+        setUploadProgressText("");
         return;
       }
 
       if (file.type.startsWith("audio/") || /\.(mp3|wav|m4a|ogg|flac|aac)$/i.test(file.name)) {
-        setStep("working");
-        setProgressLabel("正在听歌并整理歌词…");
+        setUploadProgressText("正在听歌并智能转写歌词…");
         const form = new FormData();
         form.append("file", file);
         if (chatModel) form.append("model", chatModel);
@@ -385,15 +392,17 @@ export default function HomePage() {
         setLyrics(data.text || "");
         setNeedsVision(false);
         setPendingPdfBase64(null);
-        setProgressLabel("歌词整理好了");
-        setStep("idle");
+        setUploadTip("✨ 歌声已转写成歌词，确认无误后即可点「生成歌绘本」～");
+        setIsUploading(false);
+        setUploadProgressText("");
         return;
       }
 
       throw new Error("请上传 PDF 或音频文件哦");
     } catch (e) {
       setError(e instanceof Error ? e.message : "出了点小状况");
-      setStep("idle");
+      setIsUploading(false);
+      setUploadProgressText("");
     }
   }
 
@@ -586,35 +595,56 @@ export default function HomePage() {
               className={`mt-2 flex cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed px-4 py-7 text-center transition ${
                 dragOver
                   ? "border-[#ff6b2c] bg-[#fff4ee]"
+                  : isUploading
+                  ? "border-[#ff6b2c]/60 bg-[#fff4ee]/40 animate-pulse"
                   : "border-[#f0e6d4] bg-[#fffdf8] hover:border-[#1db8a6]/70 hover:bg-[#f0faf8]"
-              } ${jobBusy ? "pointer-events-none opacity-60" : ""}`}
+              } ${jobBusy && !isUploading ? "pointer-events-none opacity-60" : ""}`}
               onDragEnter={(e) => {
                 e.preventDefault();
-                setDragOver(true);
+                if (!isUploading && !jobBusy) setDragOver(true);
               }}
               onDragOver={(e) => {
                 e.preventDefault();
-                setDragOver(true);
+                if (!isUploading && !jobBusy) setDragOver(true);
               }}
               onDragLeave={() => setDragOver(false)}
               onDrop={(e) => {
                 e.preventDefault();
                 setDragOver(false);
+                if (isUploading || jobBusy) return;
                 const f = e.dataTransfer.files?.[0] ?? null;
                 void onPickFile(f);
               }}
             >
-              <MusicBookIcons />
-              <span className="mt-3 text-sm font-medium text-neutral-700">
-                把歌或歌词本拖进来，或点这里选文件
-              </span>
-              <span className="mt-1 text-xs text-neutral-500">支持 mp3 / wav / m4a / pdf</span>
-              {fileName ? (
-                <span className="mt-3 inline-flex max-w-full items-center gap-1.5 rounded-full border border-[#ff6b2c]/30 bg-[#fff4ee] px-3 py-1 text-xs font-medium text-[#c2410c] shadow-sm">
-                  <span aria-hidden="true">📎</span>
-                  <span className="truncate">已选：{fileName}</span>
-                </span>
-              ) : null}
+              {isUploading ? (
+                <div className="flex flex-col items-center py-1">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[#ff6b2c]/10 text-[#ff6b2c]">
+                    <span className="inline-block h-6 w-6 animate-spin rounded-full border-2 border-[#ff6b2c] border-t-transparent" />
+                  </div>
+                  <span className="mt-3 text-sm font-semibold text-[#c2410c]">
+                    {uploadProgressText || "正在解析文件，请稍候…"}
+                  </span>
+                  {fileName ? (
+                    <span className="mt-1 text-xs text-neutral-500 truncate max-w-[260px]">
+                      {fileName}
+                    </span>
+                  ) : null}
+                </div>
+              ) : (
+                <>
+                  <MusicBookIcons />
+                  <span className="mt-3 text-sm font-medium text-neutral-700">
+                    把歌或歌词本拖进来，或点这里选文件
+                  </span>
+                  <span className="mt-1 text-xs text-neutral-500">支持 mp3 / wav / m4a / pdf</span>
+                  {fileName ? (
+                    <span className="mt-3 inline-flex max-w-full items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-700 shadow-sm">
+                      <span aria-hidden="true">✓</span>
+                      <span className="truncate">已就绪：{fileName}</span>
+                    </span>
+                  ) : null}
+                </>
+              )}
               <input
                 type="file"
                 accept="audio/*,.pdf,application/pdf"
@@ -624,7 +654,10 @@ export default function HomePage() {
               />
             </label>
             {uploadTip ? (
-              <p className="mt-2 text-xs leading-relaxed text-[#c2410c]">{uploadTip}</p>
+              <div className="mt-2.5 flex items-start gap-2 rounded-xl border border-emerald-200/90 bg-emerald-50/80 p-2.5 text-xs text-emerald-800 shadow-sm">
+                <span className="text-sm shrink-0 leading-none mt-0.5">✨</span>
+                <span className="leading-relaxed font-medium">{uploadTip}</span>
+              </div>
             ) : null}
             {freeSites.length > 0 ? (
               <p className="mt-2 text-xs leading-relaxed text-neutral-500">
@@ -714,11 +747,26 @@ export default function HomePage() {
 
           <button
             type="button"
-            disabled={!canGenerate}
+            disabled={!canGenerate && !isUploading}
             onClick={() => void onGenerate()}
-            className="btn-primary mt-5 w-full"
+            className={`btn-primary mt-5 w-full flex items-center justify-center gap-2 ${
+              isUploading
+                ? "opacity-85 cursor-wait bg-[#ff8a4c]"
+                : !canGenerate
+                ? "opacity-50 cursor-not-allowed"
+                : ""
+            }`}
           >
-            {jobBusy ? "正在画画…" : "生成歌绘本"}
+            {isUploading ? (
+              <>
+                <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                <span>文件读取中，稍后即可生成…</span>
+              </>
+            ) : jobBusy ? (
+              "正在画画…"
+            ) : (
+              "生成歌绘本"
+            )}
           </button>
 
           {step === "working" ? (

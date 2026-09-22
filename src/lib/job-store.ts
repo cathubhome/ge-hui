@@ -13,6 +13,7 @@ const running = new Set<string>();
 
 async function ensureDir() {
   await fs.mkdir(jobsDir(), { recursive: true });
+  void cleanupOrphanedPdfs();
 }
 
 function jobJsonPath(id: string) {
@@ -118,6 +119,41 @@ export async function deleteJobPdf(id: string) {
   } catch {
     // ignore
   }
+}
+
+/**
+ * Automatically clean up any temporary PDF files whose jobs have finished, errored,
+ * or been abandoned for more than 1 hour.
+ */
+export async function cleanupOrphanedPdfs(maxAgeMs = 60 * 60 * 1000): Promise<number> {
+  let cleaned = 0;
+  try {
+    const dir = jobsDir();
+    const entries = await fs.readdir(dir, { withFileTypes: true });
+    const now = Date.now();
+
+    for (const entry of entries) {
+      if (!entry.isFile() || !entry.name.endsWith(".pdf")) continue;
+      const pdfFilePath = path.join(dir, entry.name);
+      const id = entry.name.replace(/\.pdf$/, "");
+
+      try {
+        const stat = await fs.stat(pdfFilePath);
+        const ageMs = now - stat.mtimeMs;
+        const job = await getJob(id);
+
+        if (!job || job.status === "done" || job.status === "error" || ageMs > maxAgeMs) {
+          await fs.unlink(pdfFilePath);
+          cleaned++;
+        }
+      } catch {
+        // ignore single file error
+      }
+    }
+  } catch {
+    // ignore
+  }
+  return cleaned;
 }
 
 export async function writeJobRefs(id: string, dataUrls: string[]) {

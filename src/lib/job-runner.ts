@@ -200,6 +200,7 @@ async function runGenerateJob(jobId: string): Promise<void> {
       },
     });
   } catch (e) {
+    await deleteJobPdf(jobId).catch(() => undefined);
     const message =
       e instanceof Error ? e.message : "出了点小状况，再试一次吧";
     await updateJob(jobId, {
