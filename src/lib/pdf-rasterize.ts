@@ -10,7 +10,7 @@ export type RasterPage = {
 };
 
 const MAX_PAGES = 8;
-const TARGET_MAX_EDGE = 960;
+const TARGET_MAX_EDGE = 720;
 
 type CanvasBag = {
   canvas: unknown;
@@ -132,9 +132,8 @@ async function renderPdfPage(
       canvasFactory,
     })
     .promise;
-  const buf = canvas.toBuffer("image/png");
-  let dataUrl = "data:image/png;base64," + buf.toString("base64");
-  dataUrl = await downscaleDataUrl(dataUrl, maxEdge);
+  const buf = canvas.toBuffer("image/jpeg", 82);
+  const dataUrl = "data:image/jpeg;base64," + buf.toString("base64");
   return {
     page: pageNumber,
     dataUrl,

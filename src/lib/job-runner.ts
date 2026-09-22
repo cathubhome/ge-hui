@@ -82,6 +82,7 @@ async function runGenerateJob(jobId: string): Promise<void> {
   let referenceImageDataUrls: string[] = await readJobRefs(jobId);
   let sceneLayout = "";
   let cast: string[] = [];
+  let visionPlan: ScenePlan | undefined;
   let mode: "text" | "vision" | "lyrics" = lyrics.trim() ? "lyrics" : "text";
 
   try {
@@ -106,6 +107,7 @@ async function runGenerateJob(jobId: string): Promise<void> {
         progressLabel: "正在看最后一页歌词和角色页…",
       });
       const vision = await visionExtractPdf(pdf, priv.chatModel || undefined);
+      visionPlan = vision.plan;
       if (!lyrics.trim()) lyrics = vision.text;
       if (!songTitle.trim() && vision.titleHint) songTitle = vision.titleHint;
       if (!characterDescription.trim()) {
@@ -141,23 +143,39 @@ async function runGenerateJob(jobId: string): Promise<void> {
 
     const pictureBook = mode === "vision" || referenceImageDataUrls.length > 0;
 
-    await updateJob(jobId, {
-      step: "planning",
-      progressLabel: stepLabel("planning", "running"),
-    });
-    const plan = await callPlanScene({
-      lyrics,
-      songTitle: songTitle || undefined,
-      chatModel: priv.chatModel || undefined,
-      characterDescription: characterDescription || undefined,
-      pictureBook,
-    });
-    if (pictureBook) {
-      plan.layout = "spread";
-      plan.panels = (plan.panels || []).slice(0, 4);
-      if (characterDescription) plan.characterDescription = characterDescription;
-      if (sceneLayout) plan.sceneLayout = sceneLayout;
-      if (cast.length) plan.cast = plan.cast?.length ? plan.cast : cast;
+    let plan: ScenePlan;
+    if (visionPlan) {
+      plan = visionPlan;
+      if (songTitle.trim()) plan.titleEn = songTitle;
+      if (lyrics.trim() && !plan.lyricExcerpt) {
+        plan.lyricExcerpt = lyrics.split(/\r?\n/).slice(0, 6).join("\n");
+      }
+      if (pictureBook) {
+        plan.layout = "spread";
+        plan.panels = (plan.panels || []).slice(0, 4);
+        if (characterDescription) plan.characterDescription = characterDescription;
+        if (sceneLayout) plan.sceneLayout = sceneLayout;
+        if (cast.length) plan.cast = plan.cast?.length ? plan.cast : cast;
+      }
+    } else {
+      await updateJob(jobId, {
+        step: "planning",
+        progressLabel: stepLabel("planning", "running"),
+      });
+      plan = await callPlanScene({
+        lyrics,
+        songTitle: songTitle || undefined,
+        chatModel: priv.chatModel || undefined,
+        characterDescription: characterDescription || undefined,
+        pictureBook,
+      });
+      if (pictureBook) {
+        plan.layout = "spread";
+        plan.panels = (plan.panels || []).slice(0, 4);
+        if (characterDescription) plan.characterDescription = characterDescription;
+        if (sceneLayout) plan.sceneLayout = sceneLayout;
+        if (cast.length) plan.cast = plan.cast?.length ? plan.cast : cast;
+      }
     }
 
     await updateJob(jobId, {

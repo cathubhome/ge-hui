@@ -1,5 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createJob, publicJobSnapshot } from "@/lib/job-store";
+import {
+  createJob,
+  publicJobSnapshot,
+  readUploadPdf,
+  deleteUploadPdf,
+} from "@/lib/job-store";
 import { startGenerateJob } from "@/lib/job-runner";
 
 export const runtime = "nodejs";
@@ -13,6 +18,7 @@ type JsonBody = {
   characterDescription?: string;
   needsVision?: boolean;
   pdfBase64?: string;
+  uploadId?: string;
 };
 
 function stripDataUrl(b64: string): Buffer {
@@ -47,8 +53,17 @@ export async function POST(req: NextRequest) {
       needsVision =
         String(form.get("needsVision") || "") === "1" ||
         String(form.get("needsVision") || "").toLowerCase() === "true";
+      const uploadId = String(form.get("uploadId") || "");
+      if (uploadId) {
+        const buf = await readUploadPdf(uploadId);
+        if (buf) {
+          pdfBytes = buf;
+          needsVision = true;
+          void deleteUploadPdf(uploadId);
+        }
+      }
       const file = form.get("pdf") || form.get("file");
-      if (file && file instanceof File) {
+      if (!pdfBytes && file && file instanceof File) {
         pdfBytes = Buffer.from(await file.arrayBuffer());
         needsVision = true;
       }
@@ -60,7 +75,15 @@ export async function POST(req: NextRequest) {
       imageModel = String(body.imageModel || "");
       characterDescription = String(body.characterDescription || "");
       needsVision = Boolean(body.needsVision);
-      if (body.pdfBase64) {
+      if (body.uploadId) {
+        const buf = await readUploadPdf(body.uploadId);
+        if (buf) {
+          pdfBytes = buf;
+          needsVision = true;
+          void deleteUploadPdf(body.uploadId);
+        }
+      }
+      if (!pdfBytes && body.pdfBase64) {
         pdfBytes = stripDataUrl(String(body.pdfBase64));
         needsVision = true;
       }

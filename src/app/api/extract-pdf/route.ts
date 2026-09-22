@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
+import { randomUUID } from "node:crypto";
 import {
   TEXT_LAYER_MIN_SIGNAL,
   contentSignal,
   usableLyricsText,
 } from "@/lib/pdf-text";
 import { extractPdfTextLayer } from "@/lib/pdf-text-layer";
+import { saveUploadPdf } from "@/lib/job-store";
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
@@ -36,6 +38,8 @@ export async function POST(req: NextRequest) {
     }
 
     const bytes = new Uint8Array(await file.arrayBuffer());
+    const uploadId = randomUUID();
+    await saveUploadPdf(uploadId, bytes);
     const parsed = await extractPdfTextLayer(bytes);
     const pages = parsed.pages || 0;
     const text = usableLyricsText((parsed.text || "").trim());
@@ -44,6 +48,7 @@ export async function POST(req: NextRequest) {
 
     if (pictureBook || !(text && signal >= TEXT_LAYER_MIN_SIGNAL)) {
       return NextResponse.json({
+        uploadId,
         text: "",
         pages,
         extractedChars: signal,
@@ -57,6 +62,7 @@ export async function POST(req: NextRequest) {
     }
 
     return NextResponse.json({
+      uploadId,
       text,
       pages,
       extractedChars: signal,

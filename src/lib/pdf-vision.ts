@@ -8,6 +8,8 @@ import {
   type PictureBookPick,
 } from "@/lib/picture-book-pages";
 
+import type { ScenePlan } from "@/lib/types";
+
 export type VisionExtract = {
   text: string;
   characterDescription: string;
@@ -16,6 +18,7 @@ export type VisionExtract = {
   sceneLayout?: string;
   cast?: string[];
   referenceImageDataUrls: string[];
+  plan?: ScenePlan;
 };
 
 type LabeledPage = PictureBookPick & {
@@ -41,6 +44,30 @@ function parseVisionJson(
     const cast = Array.isArray(obj.cast)
       ? obj.cast.map((c) => String(c).trim()).filter(Boolean).slice(0, 12)
       : [];
+    const titleEn = String(obj.titleEn || obj.titleHint || obj.title || "").trim();
+    const titleZh = String(obj.titleZh || "").trim() || "歌曲绘本";
+    const excerpt = String(obj.lyricExcerpt || text.split(/\r?\n/).slice(0, 6).join("\n") || text.slice(0, 240)).trim();
+    const rawPanels = Array.isArray(obj.panels) ? obj.panels : [];
+    const panels = rawPanels.slice(0, 4).map((p: any, i: number) => ({
+      labelEn: String(p?.labelEn || `SCENE ${i + 1}`),
+      labelZh: String(p?.labelZh || `场景 ${i + 1}`),
+      action: String(p?.action || "生动表演"),
+    }));
+
+    const plan: ScenePlan = {
+      titleEn: titleEn || "Song Picture Book",
+      titleZh,
+      lyricExcerpt: excerpt,
+      instructionZh: "",
+      panels: panels.length ? panels : [{ labelEn: "MAIN", labelZh: "主画面", action: "生动展现歌词场景" }],
+      characterDescription:
+        characterDescription ||
+        (cast.length ? cast.join("; ") : undefined),
+      layout: "spread",
+      cast: cast.length ? cast : undefined,
+      sceneLayout: String(obj.sceneLayout || obj.layout || "").trim() || undefined,
+    };
+
     return {
       text,
       characterDescription:
@@ -49,9 +76,10 @@ function parseVisionJson(
           ? cast.join("; ")
           : "cartoon animals from a children's picture book, gathered on one open spread"),
       styleNotes: String(obj.styleNotes || obj.style || "").trim() || undefined,
-      titleHint: String(obj.titleHint || obj.title || "").trim() || undefined,
+      titleHint: titleEn || undefined,
       sceneLayout: String(obj.sceneLayout || obj.layout || "").trim() || undefined,
       cast: cast.length ? cast : undefined,
+      plan,
     };
   } catch {
     return null;
@@ -85,11 +113,14 @@ async function visionExtractFromPages(
 
 输出 JSON 对象，不要 markdown。字段：
 1) text：歌词全文（优先最后一页）
-2) characterDescription：英文，列出参考图上出现的每一个卡通角色
-3) cast：字符串数组，每个角色一条
-4) sceneLayout：英文，描述倒数第二页的构图（开放跨页，不是格子）
-5) styleNotes：原书画风与配色（如 flat vector, light blue background, simple animal shapes）
-6) titleHint：歌名（若能看见）`;
+2) titleEn：英文歌名（若封面或歌词可见）
+3) titleZh：歌名中文翻译（如"穿上鞋子"）
+4) lyricExcerpt：最核心的 4-6 行英文歌词摘要（用于绘本卡片展示）
+5) characterDescription：英文，列出参考图上出现的每一个卡通角色（外观、服装颜色、特征）
+6) cast：字符串数组，每个角色一条
+7) sceneLayout：英文，描述倒数第二页的构图（开放跨页，不是格子）
+8) styleNotes：原书画风与配色（如 flat vector, simple shapes）
+9) panels：数组（2-4项，每项含 labelEn, labelZh, action 描述角色生动动作）`;
 
   const content: Array<
     | { type: "text"; text: string }

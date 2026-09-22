@@ -141,6 +141,7 @@ export default function HomePage() {
   const [characterDescription, setCharacterDescription] = useState("");
   const [needsVision, setNeedsVision] = useState(false);
   const [pendingPdfBase64, setPendingPdfBase64] = useState<string | null>(null);
+  const [pendingUploadId, setPendingUploadId] = useState<string | null>(null);
   const [uploadTip, setUploadTip] = useState("");
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgressText, setUploadProgressText] = useState("");
@@ -160,9 +161,9 @@ export default function HomePage() {
   const canGenerate = useMemo(() => {
     if (jobBusy) return false;
     if (lyrics.trim().length > 8) return true;
-    if (needsVision && pendingPdfBase64) return true;
+    if (needsVision && (pendingUploadId || pendingPdfBase64)) return true;
     return false;
-  }, [lyrics, jobBusy, needsVision, pendingPdfBase64]);
+  }, [lyrics, jobBusy, needsVision, pendingUploadId, pendingPdfBase64]);
 
   const waitStepIndex = useMemo(
     () => inferWaitStep(progressLabel, String(jobStatus)),
@@ -333,6 +334,7 @@ export default function HomePage() {
     setUploadTip("");
     setNeedsVision(false);
     setPendingPdfBase64(null);
+    setPendingUploadId(null);
     setCharacterDescription("");
     setImageDataUrl("");
     setPlan(null);
@@ -354,14 +356,19 @@ export default function HomePage() {
           mode?: string;
           needsVision?: boolean;
           tip?: string;
+          uploadId?: string;
         };
         if (!res.ok && !data.needsVision) {
           throw new Error(data.error || "读 PDF 没成功");
         }
         if (data.needsVision || data.mode === "needs_vision") {
           setUploadProgressText("绘本已识别，正在载入画板…");
-          const b64 = await fileToBase64(file);
-          setPendingPdfBase64(b64);
+          if (data.uploadId) {
+            setPendingUploadId(data.uploadId);
+          } else {
+            const b64 = await fileToBase64(file);
+            setPendingPdfBase64(b64);
+          }
           setNeedsVision(true);
           setLyrics("");
           setUploadTip(
@@ -420,16 +427,21 @@ export default function HomePage() {
     );
 
     try {
+      const hasPdf = Boolean(needsVision && (pendingUploadId || pendingPdfBase64));
       const body: Record<string, unknown> = {
         lyrics,
         songTitle: songTitle || undefined,
         chatModel: chatModel || undefined,
         imageModel: imageModel || undefined,
         characterDescription: characterDescription || undefined,
-        needsVision: Boolean(needsVision && pendingPdfBase64),
+        needsVision: hasPdf,
       };
-      if (needsVision && pendingPdfBase64) {
-        body.pdfBase64 = pendingPdfBase64;
+      if (hasPdf) {
+        if (pendingUploadId) {
+          body.uploadId = pendingUploadId;
+        } else if (pendingPdfBase64) {
+          body.pdfBase64 = pendingPdfBase64;
+        }
       }
 
       const res = await fetch("/api/jobs", {
@@ -688,7 +700,7 @@ export default function HomePage() {
             disabled={jobBusy}
             onChange={(e) => setLyrics(e.target.value)}
           />
-          {needsVision && pendingPdfBase64 ? (
+          {needsVision && (pendingUploadId || pendingPdfBase64) ? (
             <p className="mt-2 text-xs leading-relaxed text-neutral-500">
               已记住这份绘本。生成时会看最后一页歌词和角色页，再合成一张歌绘～
             </p>

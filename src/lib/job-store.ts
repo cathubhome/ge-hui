@@ -4,6 +4,7 @@ import { randomUUID } from "node:crypto";
 import type { JobCreateInput, JobRecord, JobStep, JobStatus } from "@/lib/job-types";
 
 const jobsDir = () => path.join(process.cwd(), "data", "jobs");
+const uploadsDir = () => path.join(process.cwd(), "data", "uploads");
 
 /** In-memory mirror so same Node process doesn't re-read disk every poll. */
 const memory = new Map<string, JobRecord>();
@@ -13,7 +14,59 @@ const running = new Set<string>();
 
 async function ensureDir() {
   await fs.mkdir(jobsDir(), { recursive: true });
+  await fs.mkdir(uploadsDir(), { recursive: true });
   void cleanupOrphanedPdfs();
+  void cleanupOrphanedUploads();
+}
+
+function uploadPdfPath(id: string) {
+  return path.join(uploadsDir(), `${id}.pdf`);
+}
+
+export async function saveUploadPdf(id: string, bytes: Uint8Array | Buffer) {
+  await ensureDir();
+  await fs.writeFile(uploadPdfPath(id), bytes);
+}
+
+export async function readUploadPdf(id: string): Promise<Buffer | null> {
+  try {
+    return await fs.readFile(uploadPdfPath(id));
+  } catch {
+    return null;
+  }
+}
+
+export async function deleteUploadPdf(id: string) {
+  try {
+    await fs.unlink(uploadPdfPath(id));
+  } catch {
+    // ignore
+  }
+}
+
+export async function cleanupOrphanedUploads(maxAgeMs = 60 * 60 * 1000): Promise<number> {
+  let cleaned = 0;
+  try {
+    const dir = uploadsDir();
+    const entries = await fs.readdir(dir, { withFileTypes: true });
+    const now = Date.now();
+    for (const entry of entries) {
+      if (!entry.isFile() || !entry.name.endsWith(".pdf")) continue;
+      const filePath = path.join(dir, entry.name);
+      try {
+        const stat = await fs.stat(filePath);
+        if (now - stat.mtimeMs > maxAgeMs) {
+          await fs.unlink(filePath);
+          cleaned++;
+        }
+      } catch {
+        // ignore
+      }
+    }
+  } catch {
+    // ignore
+  }
+  return cleaned;
 }
 
 function jobJsonPath(id: string) {

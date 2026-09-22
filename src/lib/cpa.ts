@@ -32,20 +32,49 @@ export function imageModel(): string {
 const BROWSER_UA =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36";
 
-export async function cpaFetch(path: string, init: RequestInit = {}): Promise<Response> {
+export async function cpaFetch(
+  path: string,
+  init: RequestInit = {},
+  maxRetries = 2,
+): Promise<Response> {
   const key = requireCpaApiKey();
   const base = getCpaBaseUrl();
-  const headers = new Headers(init.headers || {});
-  headers.set("Authorization", `Bearer ${key}`);
-  headers.set("User-Agent", BROWSER_UA);
-  if (!headers.has("Accept")) headers.set("Accept", "application/json");
-  if (typeof FormData !== "undefined" && init.body instanceof FormData) {
-    headers.delete("Content-Type");
+  const url = `${base}${path.startsWith("/") ? path : `/${path}`}`;
+
+  let lastError: unknown;
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      const headers = new Headers(init.headers || {});
+      headers.set("Authorization", `Bearer ${key}`);
+      headers.set("User-Agent", BROWSER_UA);
+      if (!headers.has("Accept")) headers.set("Accept", "application/json");
+      if (typeof FormData !== "undefined" && init.body instanceof FormData) {
+        headers.delete("Content-Type");
+      }
+      return await fetch(url, { ...init, headers });
+    } catch (err) {
+      lastError = err;
+      const msg = err instanceof Error ? err.message : String(err);
+      const isNetworkError =
+        msg.includes("fetch failed") ||
+        msg.includes("timeout") ||
+        msg.includes("ECONNRESET") ||
+        msg.includes("ETIMEDOUT");
+
+      if (attempt < maxRetries && isNetworkError) {
+        // Retry with backoff: 500ms, 1200ms
+        await new Promise((r) => setTimeout(r, 500 * Math.pow(2, attempt)));
+        continue;
+      }
+      break;
+    }
   }
-  return fetch(`${base}${path.startsWith("/") ? path : `/${path}`}`, {
-    ...init,
-    headers,
-  });
+
+  const finalMsg = lastError instanceof Error ? lastError.message : String(lastError);
+  if (finalMsg.includes("fetch failed")) {
+    throw new Error("海外绘图接口连接超时，请检查网络或点击「再试一次」～");
+  }
+  throw lastError instanceof Error ? lastError : new Error(String(lastError));
 }
 
 export async function cpaChatCompletion(body: Record<string, unknown>, models = chatModels()) {
