@@ -136,9 +136,17 @@ function buildMinimalA4Pdf(jpegBytes: Uint8Array, imgW: number, imgH: number): B
   const xref = `xref\n0 6\n0000000000 65535 f \n${pad10(o1)} 00000 n \n${pad10(o2)} 00000 n \n${pad10(o3)} 00000 n \n${pad10(o4)} 00000 n \n${pad10(o5)} 00000 n \ntrailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n${startXref}\n%%EOF\n`;
   const bXref = encoder.encode(xref);
 
-  return new Blob([header, b1, b2, b3, b4H, jpegBytes, b4F, b5, bXref], {
-    type: "application/pdf",
-  });
+  // BlobPart only accepts ArrayBuffer-backed views in the DOM typings. Copying
+  // all segments into one owned buffer also guarantees byte order in the PDF.
+  const chunks = [header, b1, b2, b3, b4H, jpegBytes, b4F, b5, bXref];
+  const pdfBytes = new Uint8Array(chunks.reduce((total, chunk) => total + chunk.length, 0));
+  let offset = 0;
+  for (const chunk of chunks) {
+    pdfBytes.set(chunk, offset);
+    offset += chunk.length;
+  }
+
+  return new Blob([pdfBytes.buffer], { type: "application/pdf" });
 }
 
 export async function downloadA4Pdf(
