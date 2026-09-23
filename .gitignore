@@ -45,3 +45,6 @@ next-env.d.ts
 
 # Local durable generate jobs (no RDBMS)
 data/
+
+# Local test audio files (already stored in public/samples/audio)
+test-audio-samples/

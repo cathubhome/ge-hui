@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ScenePlan, UserPreference } from "@/lib/types";
 import { triggerNativePrintA4, downloadA4Pdf } from "@/lib/print-canvas";
+import { cleanTitleFromFileName } from "@/lib/file-title";
 import type { JobRecord, JobStatus } from "@/lib/job-types";
 
 type UiStep = "idle" | "working" | "done";
@@ -167,8 +168,9 @@ export default function HomePage() {
     if (jobBusy) return false;
     if (lyrics.trim().length > 8) return true;
     if (needsVision && (pendingUploadId || pendingPdfBase64)) return true;
+    if (pendingUploadId && (lyrics.trim().length > 0 || characterDescription.trim().length > 0)) return true;
     return false;
-  }, [lyrics, jobBusy, needsVision, pendingUploadId, pendingPdfBase64]);
+  }, [lyrics, jobBusy, needsVision, pendingUploadId, pendingPdfBase64, characterDescription]);
 
   const waitStepIndex = useMemo(
     () => inferWaitStep(progressLabel, String(jobStatus)),
@@ -330,12 +332,23 @@ export default function HomePage() {
     return () => window.removeEventListener("keydown", onKey);
   }, [showTip]);
 
-  async function onPickFile(file: File | null) {
-    if (!file) return;
+  async function onPickFiles(fileList: FileList | File[] | null) {
+    if (!fileList || fileList.length === 0) return;
     if (jobBusy) return;
     setError("");
-    const sizeMb = (file.size / (1024 * 1024)).toFixed(1);
-    setFileName(`${file.name} (${sizeMb}MB)`);
+
+    const files = Array.from(fileList);
+    const first = files[0];
+    if (!first) return;
+
+    // Pre-check size limit: 20MB per file
+    for (const f of files) {
+      if (f.size > 20 * 1024 * 1024) {
+        setError(`文件「${f.name}」大小超过 20MB，请压缩后再试～`);
+        return;
+      }
+    }
+
     setUploadTip("");
     setNeedsVision(false);
     setPendingPdfBase64(null);
@@ -343,17 +356,82 @@ export default function HomePage() {
     setCharacterDescription("");
     setImageDataUrl("");
     setPlan(null);
+
+    // Level 1: Instantly clean previous title and prefill clean title from filename
+    const autoTitle = cleanTitleFromFileName(first.name);
+    setSongTitle(autoTitle);
+    setLyrics("");
+
     setIsUploading(true);
-    setUploadProgressText(`正在上传并解析 ${file.name} (${sizeMb}MB)…`);
 
     try {
-      if (file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf")) {
-        // New PDF should not keep the previous song's title/lyrics.
-        setSongTitle("");
-        setLyrics("");
+      // 1. Photo Remake / Multiple Images (JPG, PNG, WebP)
+      const isAllImages = files.every(
+        (f) =>
+          f.type.startsWith("image/") ||
+          /\.(jpe?g|png|webp)$/i.test(f.name),
+      );
+
+      if (isAllImages) {
+        const count = Math.min(files.length, 3);
+        const nameDisplay = count === 1 ? first.name : `${first.name} 等 ${count} 张照片`;
+        setFileName(nameDisplay);
+        setUploadProgressText("正在看绘本照片，读取歌词并锁定角色…");
+
+        const form = new FormData();
+        for (const f of files.slice(0, 3)) {
+          form.append("files", f);
+        }
+
+        const res = await fetch("/api/extract-image", {
+          method: "POST",
+          body: form,
+        });
+        const data = (await res.json()) as {
+          uploadId?: string;
+          text?: string;
+          titleHint?: string;
+          characterDescription?: string;
+          imageCount?: number;
+          tip?: string;
+          error?: string;
+        };
+
+        if (!res.ok) throw new Error(data.error || "读取绘本照片失败");
+
+        if (data.text) setLyrics(data.text);
+        if (data.titleHint && data.titleHint.trim()) {
+          setSongTitle(data.titleHint.trim());
+        }
+        if (data.characterDescription) {
+          setCharacterDescription(data.characterDescription);
+        }
+        if (data.uploadId) {
+          setPendingUploadId(data.uploadId);
+        }
+
+        setNeedsVision(false);
+        setUploadTip(
+          data.tip ||
+            `✨ 已就绪 ${data.imageCount || count} 张绘本照片！已锁定角色人设，可直接点「生成歌绘本」制作专属跨页～`,
+        );
+        setIsUploading(false);
+        setUploadProgressText("");
+        return;
+      }
+
+      // 2. PDF Picture Book
+      const pdfFile = files.find(
+        (f) =>
+          f.type === "application/pdf" ||
+          f.name.toLowerCase().endsWith(".pdf"),
+      );
+      if (pdfFile) {
+        const sizeMb = (pdfFile.size / (1024 * 1024)).toFixed(1);
+        setFileName(`${pdfFile.name} (${sizeMb}MB)`);
         setUploadProgressText("正在翻阅绘本页面，识别歌词与角色页…");
         const form = new FormData();
-        form.append("file", file);
+        form.append("file", pdfFile);
         const res = await fetch("/api/extract-pdf", { method: "POST", body: form });
         const data = (await res.json()) as {
           text?: string;
@@ -371,7 +449,7 @@ export default function HomePage() {
           if (data.uploadId) {
             setPendingUploadId(data.uploadId);
           } else {
-            const b64 = await fileToBase64(file);
+            const b64 = await fileToBase64(pdfFile);
             setPendingPdfBase64(b64);
           }
           setNeedsVision(true);
@@ -393,15 +471,26 @@ export default function HomePage() {
         return;
       }
 
-      if (file.type.startsWith("audio/") || /\.(mp3|wav|m4a|ogg|flac|aac)$/i.test(file.name)) {
+      // 3. Audio Nursery Rhymes
+      const audioFile = files.find(
+        (f) =>
+          f.type.startsWith("audio/") ||
+          /\.(mp3|wav|m4a|ogg|flac|aac)$/i.test(f.name),
+      );
+      if (audioFile) {
+        const sizeMb = (audioFile.size / (1024 * 1024)).toFixed(1);
+        setFileName(`${audioFile.name} (${sizeMb}MB)`);
         setUploadProgressText("正在听歌并智能转写歌词…");
         const form = new FormData();
-        form.append("file", file);
+        form.append("file", audioFile);
         if (chatModel) form.append("model", chatModel);
         const res = await fetch("/api/transcribe", { method: "POST", body: form });
-        const data = (await res.json()) as { text?: string; error?: string };
+        const data = (await res.json()) as { text?: string; titleHint?: string; error?: string };
         if (!res.ok) throw new Error(data.error || "听歌没听清");
         setLyrics(data.text || "");
+        if (data.titleHint && data.titleHint.trim()) {
+          setSongTitle(data.titleHint.trim());
+        }
         setNeedsVision(false);
         setPendingPdfBase64(null);
         setUploadTip("✨ 歌声已转写成歌词，确认无误后即可点「生成歌绘本」～");
@@ -410,7 +499,7 @@ export default function HomePage() {
         return;
       }
 
-      throw new Error("请上传 PDF 或音频文件哦");
+      throw new Error("暂不支持该格式，请上传常见音频（MP3/WAV/M4A等）、PDF或绘本照片（JPG/PNG/WebP）～");
     } catch (e) {
       setError(e instanceof Error ? e.message : "出了点小状况");
       setIsUploading(false);
@@ -661,8 +750,7 @@ export default function HomePage() {
                 e.preventDefault();
                 setDragOver(false);
                 if (isUploading || jobBusy) return;
-                const f = e.dataTransfer.files?.[0] ?? null;
-                void onPickFile(f);
+                void onPickFiles(e.dataTransfer.files);
               }}
             >
               {isUploading ? (
@@ -683,9 +771,21 @@ export default function HomePage() {
                 <>
                   <MusicBookIcons />
                   <span className="mt-3 text-sm font-medium text-neutral-700">
-                    把歌或歌词本拖进来，或点这里选文件
+                    把儿歌、绘本文件或照片拖进来，或点击选择
                   </span>
-                  <span className="mt-1 text-xs text-neutral-500">支持 mp3 / wav / m4a / pdf</span>
+
+                  {/* 清晰分类的格式卡片 */}
+                  <div className="mt-3 flex flex-wrap items-center justify-center gap-2 text-[11px]">
+                    <div className="flex items-center gap-1 rounded-lg border border-[#f0e6d4] bg-white px-2 py-1 text-neutral-600 shadow-2xs">
+                      <span>🎵 音频：</span>
+                      <span className="font-semibold text-neutral-700">MP3 · WAV · M4A · AAC · FLAC · OGG</span>
+                    </div>
+                    <div className="flex items-center gap-1 rounded-lg border border-[#f0e6d4] bg-white px-2 py-1 text-neutral-600 shadow-2xs">
+                      <span>📖 绘本：</span>
+                      <span className="font-semibold text-neutral-700">PDF 文件 · 拍照/截图 (JPG · PNG · WebP 可多选)</span>
+                    </div>
+                  </div>
+
                   {fileName ? (
                     <span className="mt-3 inline-flex max-w-full items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-700 shadow-sm">
                       <span aria-hidden="true">✓</span>
@@ -696,10 +796,11 @@ export default function HomePage() {
               )}
               <input
                 type="file"
-                accept="audio/*,.pdf,application/pdf"
+                multiple
+                accept=".mp3,.wav,.m4a,.ogg,.flac,.aac,.pdf,.jpg,.jpeg,.png,.webp"
                 className="hidden"
                 disabled={jobBusy}
-                onChange={(e) => void onPickFile(e.target.files?.[0] ?? null)}
+                onChange={(e) => void onPickFiles(e.target.files)}
               />
             </label>
             {uploadTip ? (

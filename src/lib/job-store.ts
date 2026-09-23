@@ -45,6 +45,42 @@ export async function deleteUploadPdf(id: string) {
   }
 }
 
+function uploadRefPath(id: string, i: number) {
+  return path.join(uploadsDir(), `${id}.ref${i}.png`);
+}
+
+export async function saveUploadRefs(id: string, buffers: Buffer[]) {
+  await ensureDir();
+  let i = 0;
+  for (const buf of buffers.slice(0, 2)) {
+    await fs.writeFile(uploadRefPath(id, i), buf);
+    i++;
+  }
+}
+
+export async function readUploadRefs(id: string): Promise<Buffer[]> {
+  const out: Buffer[] = [];
+  for (let i = 0; i < 2; i++) {
+    try {
+      const buf = await fs.readFile(uploadRefPath(id, i));
+      out.push(buf);
+    } catch {
+      // ignore
+    }
+  }
+  return out;
+}
+
+export async function deleteUploadRefs(id: string) {
+  for (let i = 0; i < 2; i++) {
+    try {
+      await fs.unlink(uploadRefPath(id, i));
+    } catch {
+      // ignore
+    }
+  }
+}
+
 export async function cleanupOrphanedUploads(maxAgeMs = 60 * 60 * 1000): Promise<number> {
   let cleaned = 0;
   try {
@@ -52,7 +88,7 @@ export async function cleanupOrphanedUploads(maxAgeMs = 60 * 60 * 1000): Promise
     const entries = await fs.readdir(dir, { withFileTypes: true });
     const now = Date.now();
     for (const entry of entries) {
-      if (!entry.isFile() || !entry.name.endsWith(".pdf")) continue;
+      if (!entry.isFile() || (!entry.name.endsWith(".pdf") && !entry.name.includes(".ref"))) continue;
       const filePath = path.join(dir, entry.name);
       try {
         const stat = await fs.stat(filePath);
@@ -117,6 +153,13 @@ export async function createJob(input: JobCreateInput): Promise<JobRecord> {
 
   if (input.pdfBytes?.length) {
     await fs.writeFile(jobPdfPath(id), input.pdfBytes);
+  }
+  if (input.refBuffers?.length) {
+    let ri = 0;
+    for (const buf of input.refBuffers.slice(0, 2)) {
+      await fs.writeFile(jobRefPath(id, ri), buf);
+      ri++;
+    }
   }
 
   await writePrivateInput(id, {
@@ -189,7 +232,7 @@ export async function cleanupOrphanedPdfs(maxAgeMs = 60 * 60 * 1000): Promise<nu
     const now = Date.now();
 
     for (const entry of entries) {
-      if (!entry.isFile() || !entry.name.endsWith(".pdf")) continue;
+      if (!entry.isFile() || (!entry.name.endsWith(".pdf") && !entry.name.includes(".ref"))) continue;
       const pdfFilePath = path.join(dir, entry.name);
       const id = entry.name.replace(/\.pdf$/, "");
 

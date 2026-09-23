@@ -4,6 +4,8 @@ import {
   publicJobSnapshot,
   readUploadPdf,
   deleteUploadPdf,
+  readUploadRefs,
+  deleteUploadRefs,
 } from "@/lib/job-store";
 import { startGenerateJob } from "@/lib/job-runner";
 import type { UserPreference } from "@/lib/types";
@@ -44,6 +46,7 @@ export async function POST(req: NextRequest) {
     let characterDescription = "";
     let needsVision = false;
     let pdfBytes: Buffer | undefined;
+    let refBuffers: Buffer[] | undefined;
     let userPreference: UserPreference | undefined;
 
     if (contentType.includes("multipart/form-data")) {
@@ -85,6 +88,12 @@ export async function POST(req: NextRequest) {
           pdfBytes = buf;
           needsVision = true;
           void deleteUploadPdf(body.uploadId);
+        } else {
+          const refs = await readUploadRefs(body.uploadId);
+          if (refs.length > 0) {
+            refBuffers = refs;
+            void deleteUploadRefs(body.uploadId);
+          }
         }
       }
       if (!pdfBytes && body.pdfBase64) {
@@ -94,7 +103,7 @@ export async function POST(req: NextRequest) {
     }
 
     const hasLyrics = lyrics.trim().length > 8;
-    if (!hasLyrics && !pdfBytes?.length) {
+    if (!hasLyrics && !pdfBytes?.length && !refBuffers?.length) {
       return NextResponse.json(
         { error: "请先填写歌词，或上传需要看图读词的 PDF～" },
         { status: 400 },
@@ -117,6 +126,7 @@ export async function POST(req: NextRequest) {
       characterDescription,
       needsVision: needsVision && Boolean(pdfBytes?.length),
       pdfBytes,
+      refBuffers,
       userPreference,
     });
 

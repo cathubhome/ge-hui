@@ -51,4 +51,6 @@ export type JobCreateInput = {
   userPreference?: UserPreference;
   /** Raw PDF bytes when image-PDF deferred vision is needed. */
   pdfBytes?: Buffer;
+  /** Reference image buffers (e.g. from photo remake). */
+  refBuffers?: Buffer[];
 };
