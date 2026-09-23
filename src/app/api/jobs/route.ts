@@ -23,6 +23,7 @@ type JsonBody = {
   pdfBase64?: string;
   uploadId?: string;
   userPreference?: UserPreference;
+  audioId?: string;
 };
 
 function stripDataUrl(b64: string): Buffer {
@@ -48,6 +49,7 @@ export async function POST(req: NextRequest) {
     let pdfBytes: Buffer | undefined;
     let refBuffers: Buffer[] | undefined;
     let userPreference: UserPreference | undefined;
+    let audioId = "";
 
     if (contentType.includes("multipart/form-data")) {
       const form = await req.formData();
@@ -82,6 +84,7 @@ export async function POST(req: NextRequest) {
       characterDescription = String(body.characterDescription || "");
       needsVision = Boolean(body.needsVision);
       userPreference = body.userPreference;
+      audioId = String(body.audioId || "");
       if (body.uploadId) {
         const buf = await readUploadPdf(body.uploadId);
         if (buf) {
@@ -128,6 +131,7 @@ export async function POST(req: NextRequest) {
       pdfBytes,
       refBuffers,
       userPreference,
+      audioId: audioId || undefined,
     });
 
     // Fire-and-forget — do not await the full pipeline.

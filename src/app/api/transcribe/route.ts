@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { cpaChatCompletion, transcribeModel } from "@/lib/cpa";
+import { compressAndSaveAudio } from "@/lib/audio-store";
 
 export const runtime = "nodejs";
 
@@ -74,9 +75,19 @@ export async function POST(req: NextRequest) {
         { status: 422 },
       );
     }
+
+    let audioId: string | undefined;
+    try {
+      const saved = await compressAndSaveAudio(buf, ext);
+      audioId = saved.audioId;
+    } catch {
+      // Audio compression failure shouldn't block lyrics transcription
+    }
+
     return NextResponse.json({
       text,
       titleHint: titleHint || undefined,
+      audioId,
       model: usedModel,
       engine: "cpa-gemini-multimodal",
     });

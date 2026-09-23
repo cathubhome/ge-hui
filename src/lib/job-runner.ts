@@ -217,6 +217,7 @@ async function runGenerateJob(jobId: string): Promise<void> {
         mode,
         usedReferences: generated.usedReferences,
         drawMode: generated.drawMode,
+        audioId: priv.audioId || undefined,
       },
     });
   } catch (e) {

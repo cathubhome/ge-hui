@@ -3,6 +3,7 @@ import path from "node:path";
 import { randomUUID } from "node:crypto";
 import type { JobCreateInput, JobRecord, JobStep, JobStatus } from "@/lib/job-types";
 import type { UserPreference } from "@/lib/types";
+import { cleanupOldAudios } from "@/lib/audio-store";
 
 const jobsDir = () => path.join(process.cwd(), "data", "jobs");
 const uploadsDir = () => path.join(process.cwd(), "data", "uploads");
@@ -18,6 +19,7 @@ async function ensureDir() {
   await fs.mkdir(uploadsDir(), { recursive: true });
   void cleanupOrphanedPdfs();
   void cleanupOrphanedUploads();
+  void cleanupOldAudios(90);
 }
 
 function uploadPdfPath(id: string) {
@@ -170,6 +172,7 @@ export async function createJob(input: JobCreateInput): Promise<JobRecord> {
     characterDescription: input.characterDescription || "",
     needsVision,
     userPreference: input.userPreference,
+    audioId: input.audioId,
   });
 
   memory.set(id, record);
@@ -185,6 +188,7 @@ type PrivateInput = {
   characterDescription: string;
   needsVision: boolean;
   userPreference?: UserPreference;
+  audioId?: string;
 };
 
 function privatePath(id: string) {
@@ -340,6 +344,7 @@ export async function writePrivateInputAfterVision(
     imageModel: string;
     characterDescription: string;
     userPreference?: UserPreference;
+    audioId?: string;
   },
 ) {
   await writePrivateInput(id, { ...data, needsVision: false });

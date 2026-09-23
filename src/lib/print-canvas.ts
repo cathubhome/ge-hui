@@ -8,7 +8,8 @@ const A4_WIDTH = 2970;
 const A4_HEIGHT = 2100;
 const MARGIN_X = 120; // 12mm safe quiet zone against printer hardware margins
 const MARGIN_TOP = 100;
-const MARGIN_BOTTOM = 140;
+const MARGIN_BOTTOM = 150;
+import QRCode from "qrcode";
 
 function loadImageElement(url: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
@@ -23,6 +24,7 @@ function loadImageElement(url: string): Promise<HTMLImageElement> {
 export async function renderA4Canvas(
   imageDataUrl: string,
   songTitle?: string,
+  listenUrl?: string,
 ): Promise<HTMLCanvasElement> {
   const img = await loadImageElement(imageDataUrl);
 
@@ -62,13 +64,49 @@ export async function renderA4Canvas(
   const titleText = `${(songTitle || "歌绘").trim()} · 启蒙伴读挂画`;
   ctx.fillText(titleText, MARGIN_X + 10, footerY);
 
-  ctx.textAlign = "right";
-  ctx.font = "normal 28px sans-serif";
-  ctx.fillText(
-    "A4 打印挂图 · 贴在床头或门后，每天边指边唱 🎵",
-    A4_WIDTH - MARGIN_X - 10,
-    footerY,
-  );
+  if (listenUrl) {
+    try {
+      const qrDataUrl = await QRCode.toDataURL(listenUrl, {
+        margin: 1,
+        width: 140,
+        color: { dark: "#1A1A1A", light: "#FFFFFF" },
+      });
+      const qrImg = await loadImageElement(qrDataUrl);
+      const qrSize = 110;
+      const qrX = A4_WIDTH - MARGIN_X - qrSize;
+      const qrY = A4_HEIGHT - MARGIN_BOTTOM + 20;
+
+      ctx.drawImage(qrImg, qrX, qrY, qrSize, qrSize);
+      ctx.strokeStyle = "#E5E1D8";
+      ctx.lineWidth = 2;
+      ctx.strokeRect(qrX, qrY, qrSize, qrSize);
+
+      ctx.textAlign = "right";
+      ctx.fillStyle = "#3F3F46";
+      ctx.font = "bold 26px sans-serif";
+      ctx.fillText("📱 微信扫码即听伴唱", qrX - 18, qrY + 45);
+
+      ctx.fillStyle = "#8C867D";
+      ctx.font = "normal 22px sans-serif";
+      ctx.fillText("手机放桌上，每天边指边唱 🎵", qrX - 18, qrY + 85);
+    } catch {
+      ctx.textAlign = "right";
+      ctx.font = "normal 28px sans-serif";
+      ctx.fillText(
+        "A4 打印挂图 · 贴在床头或门后，每天边指边唱 🎵",
+        A4_WIDTH - MARGIN_X - 10,
+        footerY,
+      );
+    }
+  } else {
+    ctx.textAlign = "right";
+    ctx.font = "normal 28px sans-serif";
+    ctx.fillText(
+      "A4 打印挂图 · 贴在床头或门后，每天边指边唱 🎵",
+      A4_WIDTH - MARGIN_X - 10,
+      footerY,
+    );
+  }
 
   return canvas;
 }
@@ -76,16 +114,18 @@ export async function renderA4Canvas(
 export async function buildA4PrintDataUrl(
   imageDataUrl: string,
   songTitle?: string,
+  listenUrl?: string,
 ): Promise<string> {
-  const canvas = await renderA4Canvas(imageDataUrl, songTitle);
+  const canvas = await renderA4Canvas(imageDataUrl, songTitle, listenUrl);
   return canvas.toDataURL("image/png", 0.95);
 }
 
 export async function downloadA4PrintImage(
   imageDataUrl: string,
   songTitle?: string,
+  listenUrl?: string,
 ): Promise<void> {
-  const a4DataUrl = await buildA4PrintDataUrl(imageDataUrl, songTitle);
+  const a4DataUrl = await buildA4PrintDataUrl(imageDataUrl, songTitle, listenUrl);
   const safeTitle = (songTitle || "歌绘")
     .replace(/[^\w\u4e00-\u9fff-]+/g, "_")
     .slice(0, 30);
@@ -152,8 +192,9 @@ function buildMinimalA4Pdf(jpegBytes: Uint8Array, imgW: number, imgH: number): B
 export async function downloadA4Pdf(
   imageDataUrl: string,
   songTitle?: string,
+  listenUrl?: string,
 ): Promise<void> {
-  const canvas = await renderA4Canvas(imageDataUrl, songTitle);
+  const canvas = await renderA4Canvas(imageDataUrl, songTitle, listenUrl);
   const jpegDataUrl = canvas.toDataURL("image/jpeg", 0.92);
   const base64 = jpegDataUrl.replace(/^data:image\/jpeg;base64,/, "");
   const binary = atob(base64);
@@ -179,8 +220,9 @@ export async function downloadA4Pdf(
 export async function triggerNativePrintA4(
   imageDataUrl: string,
   songTitle?: string,
+  listenUrl?: string,
 ): Promise<void> {
-  const a4DataUrl = await buildA4PrintDataUrl(imageDataUrl, songTitle);
+  const a4DataUrl = await buildA4PrintDataUrl(imageDataUrl, songTitle, listenUrl);
 
   // Inject hidden iframe for seamless native browser print dialog
   const iframe = document.createElement("iframe");

@@ -145,6 +145,7 @@ export default function HomePage() {
   const [artStyle, setArtStyle] = useState<"default" | "crayon" | "clay">("default");
   const [customPrompt, setCustomPrompt] = useState("");
   const [isPrinting, setIsPrinting] = useState(false);
+  const [audioId, setAudioId] = useState<string | null>(null);
   const [needsVision, setNeedsVision] = useState(false);
   const [pendingPdfBase64, setPendingPdfBase64] = useState<string | null>(null);
   const [pendingUploadId, setPendingUploadId] = useState<string | null>(null);
@@ -194,6 +195,7 @@ export default function HomePage() {
       setCharacterDescription(job.result.characterDescription);
     }
     if (job.result?.plan) setPlan(job.result.plan);
+    if (job.result?.audioId) setAudioId(job.result.audioId);
     if (job.status === "queued" || job.status === "running") {
       setStep("working");
       setError("");
@@ -485,11 +487,14 @@ export default function HomePage() {
         form.append("file", audioFile);
         if (chatModel) form.append("model", chatModel);
         const res = await fetch("/api/transcribe", { method: "POST", body: form });
-        const data = (await res.json()) as { text?: string; titleHint?: string; error?: string };
+        const data = (await res.json()) as { text?: string; titleHint?: string; audioId?: string; error?: string };
         if (!res.ok) throw new Error(data.error || "听歌没听清");
         setLyrics(data.text || "");
         if (data.titleHint && data.titleHint.trim()) {
           setSongTitle(data.titleHint.trim());
+        }
+        if (data.audioId) {
+          setAudioId(data.audioId);
         }
         setNeedsVision(false);
         setPendingPdfBase64(null);
@@ -537,6 +542,7 @@ export default function HomePage() {
         characterDescription: characterDescription || undefined,
         needsVision: hasPdf,
         userPreference: hasPref ? userPreference : undefined,
+        audioId: audioId || undefined,
       };
       if (hasPdf) {
         if (pendingUploadId) {
@@ -595,11 +601,17 @@ export default function HomePage() {
     setUploadTip("已填入演示儿歌，可以直接点「生成歌绘本」啦～");
   }
 
+  function getListenUrl(): string | undefined {
+    const targetId = audioId || jobId;
+    if (typeof window === "undefined" || !targetId) return undefined;
+    return `${window.location.origin}/p/${targetId}`;
+  }
+
   async function onPrintA4() {
     if (!imageDataUrl || isPrinting) return;
     setIsPrinting(true);
     try {
-      await triggerNativePrintA4(imageDataUrl, songTitle);
+      await triggerNativePrintA4(imageDataUrl, songTitle, getListenUrl());
     } catch (e) {
       setError(e instanceof Error ? e.message : "无法调起系统打印");
     } finally {
@@ -611,7 +623,7 @@ export default function HomePage() {
     if (!imageDataUrl || isPrinting) return;
     setIsPrinting(true);
     try {
-      await downloadA4Pdf(imageDataUrl, songTitle);
+      await downloadA4Pdf(imageDataUrl, songTitle, getListenUrl());
     } catch (e) {
       setError(e instanceof Error ? e.message : "无法导出 PDF 文件");
     } finally {

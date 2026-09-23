@@ -18,6 +18,7 @@ export type JobResult = {
   mode?: "text" | "vision" | "lyrics";
   usedReferences?: number;
   drawMode?: string;
+  audioId?: string;
 };
 
 export type JobRecord = {
@@ -49,6 +50,7 @@ export type JobCreateInput = {
   characterDescription?: string;
   needsVision?: boolean;
   userPreference?: UserPreference;
+  audioId?: string;
   /** Raw PDF bytes when image-PDF deferred vision is needed. */
   pdfBytes?: Buffer;
   /** Reference image buffers (e.g. from photo remake). */
