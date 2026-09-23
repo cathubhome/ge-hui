@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ScenePlan, UserPreference } from "@/lib/types";
 import { triggerNativePrintA4, downloadA4Pdf } from "@/lib/print-canvas";
+import { downloadColoringPdf, canvasEdgeDetect } from "@/lib/coloring-card";
 import { cleanTitleFromFileName } from "@/lib/file-title";
 import type { JobRecord, JobStatus } from "@/lib/job-types";
 
@@ -145,6 +146,26 @@ export default function HomePage() {
   const [artStyle, setArtStyle] = useState<"default" | "crayon" | "clay">("default");
   const [customPrompt, setCustomPrompt] = useState("");
   const [isPrinting, setIsPrinting] = useState(false);
+  const [isColoring, setIsColoring] = useState(false);
+  const [modelHighlight, setModelHighlight] = useState<"chat" | "image" | "both" | null>(null);
+
+  const isChatReady = Boolean(chatModel && chatModels.some((m) => m.id === chatModel));
+  const isImageReady = Boolean(imageModel && imageModels.some((m) => m.id === imageModel));
+  const isBothModelsReady = isChatReady && isImageReady;
+
+  function handleModelMissingClick() {
+    setShowAdvanced(true);
+    if (!isChatReady && !isImageReady) {
+      setModelHighlight("both");
+    } else if (!isChatReady) {
+      setModelHighlight("chat");
+    } else {
+      setModelHighlight("image");
+    }
+    setTimeout(() => {
+      document.getElementById("advanced-settings-panel")?.scrollIntoView({ behavior: "smooth", block: "center" });
+    }, 100);
+  }
   const [audioId, setAudioId] = useState<string | null>(null);
   const [needsVision, setNeedsVision] = useState(false);
   const [pendingPdfBase64, setPendingPdfBase64] = useState<string | null>(null);
@@ -619,6 +640,40 @@ export default function HomePage() {
     }
   }
 
+  async function onDownloadColoring() {
+    if (!imageDataUrl || isColoring || isPrinting) return;
+    setIsColoring(true);
+    try {
+      let coloringDataUrl = "";
+      // 1. Try AI-assisted line art API
+      try {
+        const res = await fetch("/api/generate-coloring", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ imageDataUrl, imageModel }),
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.coloringDataUrl) {
+            coloringDataUrl = data.coloringDataUrl;
+          }
+        }
+      } catch {}
+
+      // 2. Fallback to high-precision local canvas edge detection
+      if (!coloringDataUrl) {
+        coloringDataUrl = await canvasEdgeDetect(imageDataUrl);
+      }
+
+      const excerpt = plan?.lyricExcerpt || lyrics.split("\n").filter(Boolean).slice(0, 2).join("\n");
+      await downloadColoringPdf(coloringDataUrl, songTitle, excerpt, getListenUrl());
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "生成涂色卡失败，请重试");
+    } finally {
+      setIsColoring(false);
+    }
+  }
+
   async function onDownloadPdf() {
     if (!imageDataUrl || isPrinting) return;
     setIsPrinting(true);
@@ -982,27 +1037,45 @@ export default function HomePage() {
             </div>
           ) : null}
 
+          {/* 模型未就绪时的温馨提示卡 */}
+          {!isBothModelsReady && !jobBusy ? (
+            <div className="mb-2 rounded-2xl border border-amber-200/80 bg-amber-50/90 p-3.5 text-center text-xs text-amber-800 shadow-xs">
+              <span className="font-semibold">温馨提示：</span>
+              {!isChatReady && !isImageReady
+                ? "画室今天还没开门，请联系管理员老师检查服务配置哦～"
+                : !isChatReady
+                ? "听歌构思的小伙伴还没准备好呢，请联系管理员老师开通听歌功能～"
+                : "画画的小伙伴还没准备好呢，请联系管理员老师开通画画功能～"}
+            </div>
+          ) : null}
+
           <button
             type="button"
-            disabled={!canGenerate && !isUploading}
-            onClick={() => void onGenerate()}
-            className={`btn-primary mt-5 w-full flex items-center justify-center gap-2 ${
-              isUploading
-                ? "opacity-85 cursor-wait bg-[#ff8a4c]"
-                : !canGenerate
-                ? "opacity-50 cursor-not-allowed"
+            disabled={jobBusy || (!lyrics.trim() && isBothModelsReady)}
+            onClick={!isBothModelsReady ? handleModelMissingClick : onGenerate}
+            className={`btn-primary mt-3 w-full flex items-center justify-center gap-2 ${
+              !isBothModelsReady
+                ? "bg-neutral-300 hover:bg-neutral-400 text-neutral-700 shadow-none cursor-pointer"
                 : ""
+            } ${
+              jobBusy || (!lyrics.trim() && isBothModelsReady) ? "opacity-50 cursor-not-allowed" : ""
             }`}
           >
-            {isUploading ? (
+            {jobBusy ? (
               <>
                 <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
-                <span>文件读取中，稍后即可生成…</span>
+                <span>正在一页一页画…</span>
               </>
-            ) : jobBusy ? (
-              "正在画画…"
+            ) : !isBothModelsReady ? (
+              <span>
+                {!isChatReady && !isImageReady
+                  ? "小画家们正在赶来的路上…（点击查看）"
+                  : !isChatReady
+                  ? "听歌的小伙伴还没就位哦（点击查看）"
+                  : "画画的小伙伴还没就位哦（点击查看）"}
+              </span>
             ) : (
-              "生成歌绘本"
+              <span>生成歌绘本</span>
             )}
           </button>
 
@@ -1108,15 +1181,14 @@ export default function HomePage() {
                   alt="生成的歌绘本页"
                   className="w-full rounded-2xl border border-[#f0e6d4] bg-white shadow-sm"
                 />
-                {/* 方案 C: 主次分流胶囊栏 */}
-                <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 pt-1">
-                  {/* 左侧：再画一张（轻柔独立，避免误触） */}
-                  <div>
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 pt-2">
+                  {/* 左侧：再画一张（锁定高度与单行排版） */}
+                  <div className="flex-shrink-0">
                     <button
                       type="button"
-                      disabled={jobBusy || isPrinting}
+                      disabled={jobBusy || isPrinting || isColoring}
                       onClick={onNewGenerate}
-                      className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 rounded-xl border border-[#f0e6d4] bg-white px-3.5 py-2 text-xs font-semibold text-neutral-600 transition hover:border-[#ff6b2c]/40 hover:bg-[#fff4ee]/60 hover:text-[#c2410c] shadow-sm disabled:opacity-50"
+                      className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 rounded-xl border border-[#f0e6d4] bg-white px-3.5 h-9 text-xs font-semibold text-neutral-700 transition hover:border-[#ff6b2c]/50 hover:bg-[#fff4ee] hover:text-[#c2410c] shadow-xs disabled:opacity-50 whitespace-nowrap min-w-[96px]"
                       title="保留当前歌词，换个构图再画一张"
                     >
                       <span aria-hidden>🔄</span>
@@ -1124,18 +1196,38 @@ export default function HomePage() {
                     </button>
                   </div>
 
-                  {/* 右侧：交付三组合（完全一致的质感与高宽规范） */}
+                  {/* 右侧：四大交付项（高度全对齐 h-9，边框与字色秩序统一） */}
                   <div className="flex flex-wrap sm:flex-nowrap items-center gap-2">
                     <button
                       type="button"
-                      disabled={isPrinting}
+                      disabled={isPrinting || isColoring}
+                      onClick={() => void onDownloadColoring()}
+                      className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 rounded-xl border border-orange-200/80 bg-orange-50/80 px-3.5 h-9 text-xs font-semibold text-[#c2410c] transition hover:bg-[#ff6b2c] hover:text-white shadow-xs disabled:opacity-50 whitespace-nowrap"
+                      title="一键提取黑白线稿并合成 A4 涂色卡，支持蜡笔涂鸦与描红"
+                    >
+                      {isColoring ? (
+                        <>
+                          <span className="inline-block h-3.5 w-3.5 animate-spin rounded-full border-2 border-[#c2410c] border-t-transparent" />
+                          <span>画线稿中…</span>
+                        </>
+                      ) : (
+                        <>
+                          <span aria-hidden>✏️</span>
+                          <span>涂色卡</span>
+                        </>
+                      )}
+                    </button>
+
+                    <button
+                      type="button"
+                      disabled={isPrinting || isColoring}
                       onClick={() => void onDownloadPdf()}
-                      className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 rounded-xl border border-orange-200/80 bg-orange-50/70 px-3.5 py-2 text-xs font-semibold text-[#c2410c] transition hover:bg-[#ff6b2c] hover:text-white shadow-sm disabled:opacity-50"
+                      className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 rounded-xl border border-orange-200/80 bg-orange-50/80 px-3.5 h-9 text-xs font-semibold text-[#c2410c] transition hover:bg-[#ff6b2c] hover:text-white shadow-xs disabled:opacity-50 whitespace-nowrap"
                       title="直接静默下载标准的 A4 PDF 文件，专为打印贴墙设计"
                     >
                       {isPrinting ? (
                         <>
-                          <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-[#c2410c] border-t-transparent" />
+                          <span className="inline-block h-3.5 w-3.5 animate-spin rounded-full border-2 border-[#c2410c] border-t-transparent" />
                           <span>生成中…</span>
                         </>
                       ) : (
@@ -1148,9 +1240,9 @@ export default function HomePage() {
 
                     <button
                       type="button"
-                      disabled={isPrinting}
+                      disabled={isPrinting || isColoring}
                       onClick={onDownload}
-                      className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 rounded-xl border border-[#f0e6d4] bg-white px-3.5 py-2 text-xs font-semibold text-neutral-700 transition hover:border-[#ff6b2c]/40 hover:bg-[#fff4ee]/60 hover:text-[#c2410c] shadow-sm disabled:opacity-50"
+                      className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 rounded-xl border border-[#f0e6d4] bg-white px-3.5 h-9 text-xs font-semibold text-neutral-700 transition hover:border-[#ff6b2c]/40 hover:bg-[#fff4ee]/60 hover:text-[#c2410c] shadow-xs disabled:opacity-50 whitespace-nowrap"
                       title="下载高清绘本图片 (PNG)"
                     >
                       <span aria-hidden>🖼️</span>
@@ -1159,9 +1251,9 @@ export default function HomePage() {
 
                     <button
                       type="button"
-                      disabled={isPrinting}
+                      disabled={isPrinting || isColoring}
                       onClick={() => void onPrintA4()}
-                      className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 rounded-xl border border-[#f0e6d4] bg-white px-3.5 py-2 text-xs font-semibold text-neutral-700 transition hover:border-[#ff6b2c]/40 hover:bg-[#fff4ee]/60 hover:text-[#c2410c] shadow-sm disabled:opacity-50"
+                      className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 rounded-xl border border-[#f0e6d4] bg-white px-3.5 h-9 text-xs font-semibold text-neutral-700 transition hover:border-[#ff6b2c]/40 hover:bg-[#fff4ee]/60 hover:text-[#c2410c] shadow-xs disabled:opacity-50 whitespace-nowrap"
                       title="调起系统打印机即刻出纸"
                     >
                       <span aria-hidden>🖨️</span>
@@ -1169,6 +1261,7 @@ export default function HomePage() {
                     </button>
                   </div>
                 </div>
+
                 {plan ? (
                   <details className="rounded-xl border border-[#f0e6d4] bg-[#fffdf8] px-3 py-2 text-xs text-neutral-600">
                     <summary className="cursor-pointer select-none font-medium text-neutral-700">
