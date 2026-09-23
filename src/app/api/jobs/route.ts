@@ -6,6 +6,7 @@ import {
   deleteUploadPdf,
 } from "@/lib/job-store";
 import { startGenerateJob } from "@/lib/job-runner";
+import type { UserPreference } from "@/lib/types";
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
@@ -19,6 +20,7 @@ type JsonBody = {
   needsVision?: boolean;
   pdfBase64?: string;
   uploadId?: string;
+  userPreference?: UserPreference;
 };
 
 function stripDataUrl(b64: string): Buffer {
@@ -42,6 +44,7 @@ export async function POST(req: NextRequest) {
     let characterDescription = "";
     let needsVision = false;
     let pdfBytes: Buffer | undefined;
+    let userPreference: UserPreference | undefined;
 
     if (contentType.includes("multipart/form-data")) {
       const form = await req.formData();
@@ -75,6 +78,7 @@ export async function POST(req: NextRequest) {
       imageModel = String(body.imageModel || "");
       characterDescription = String(body.characterDescription || "");
       needsVision = Boolean(body.needsVision);
+      userPreference = body.userPreference;
       if (body.uploadId) {
         const buf = await readUploadPdf(body.uploadId);
         if (buf) {
@@ -113,6 +117,7 @@ export async function POST(req: NextRequest) {
       characterDescription,
       needsVision: needsVision && Boolean(pdfBytes?.length),
       pdfBytes,
+      userPreference,
     });
 
     // Fire-and-forget — do not await the full pipeline.

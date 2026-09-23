@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { ScenePlan } from "@/lib/types";
+import type { ScenePlan, UserPreference } from "@/lib/types";
+import { triggerNativePrintA4, downloadA4Pdf } from "@/lib/print-canvas";
 import type { JobRecord, JobStatus } from "@/lib/job-types";
 
 type UiStep = "idle" | "working" | "done";
@@ -139,6 +140,10 @@ export default function HomePage() {
   const [freeSites, setFreeSites] = useState<FreeSite[]>([]);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [characterDescription, setCharacterDescription] = useState("");
+  const [roleScope, setRoleScope] = useState<"default" | "solo" | "all">("default");
+  const [artStyle, setArtStyle] = useState<"default" | "crayon" | "clay">("default");
+  const [customPrompt, setCustomPrompt] = useState("");
+  const [isPrinting, setIsPrinting] = useState(false);
   const [needsVision, setNeedsVision] = useState(false);
   const [pendingPdfBase64, setPendingPdfBase64] = useState<string | null>(null);
   const [pendingUploadId, setPendingUploadId] = useState<string | null>(null);
@@ -428,6 +433,13 @@ export default function HomePage() {
 
     try {
       const hasPdf = Boolean(needsVision && (pendingUploadId || pendingPdfBase64));
+      const userPreference: UserPreference = {
+        roleScope: roleScope !== "default" ? roleScope : undefined,
+        artStyle: artStyle !== "default" ? artStyle : undefined,
+        customPrompt: customPrompt.trim() ? customPrompt.trim().slice(0, 40) : undefined,
+      };
+      const hasPref = Boolean(userPreference.roleScope || userPreference.artStyle || userPreference.customPrompt);
+
       const body: Record<string, unknown> = {
         lyrics,
         songTitle: songTitle || undefined,
@@ -435,6 +447,7 @@ export default function HomePage() {
         imageModel: imageModel || undefined,
         characterDescription: characterDescription || undefined,
         needsVision: hasPdf,
+        userPreference: hasPref ? userPreference : undefined,
       };
       if (hasPdf) {
         if (pendingUploadId) {
@@ -491,6 +504,30 @@ export default function HomePage() {
     setNeedsVision(false);
     setPendingPdfBase64(null);
     setUploadTip("已填入演示儿歌，可以直接点「生成歌绘本」啦～");
+  }
+
+  async function onPrintA4() {
+    if (!imageDataUrl || isPrinting) return;
+    setIsPrinting(true);
+    try {
+      await triggerNativePrintA4(imageDataUrl, songTitle);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "无法调起系统打印");
+    } finally {
+      setIsPrinting(false);
+    }
+  }
+
+  async function onDownloadPdf() {
+    if (!imageDataUrl || isPrinting) return;
+    setIsPrinting(true);
+    try {
+      await downloadA4Pdf(imageDataUrl, songTitle);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "无法导出 PDF 文件");
+    } finally {
+      setIsPrinting(false);
+    }
   }
 
   function onDownload() {
@@ -706,6 +743,81 @@ export default function HomePage() {
             </p>
           ) : null}
 
+          {/* 画面定制（可选芯片） */}
+          <div className="mt-4 rounded-2xl border border-[#f0e6d4] bg-[#fffdf8] p-3.5 sm:p-4">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-neutral-800 flex items-center gap-1.5">
+                <span>🎨</span> 画面定制（可选）
+              </span>
+              <span className="text-[11px] text-neutral-400">点击直接生效</span>
+            </div>
+
+            {/* 出镜角色 */}
+            <div className="mt-3">
+              <p className="text-[11px] font-medium text-neutral-500 mb-1.5">出镜角色</p>
+              <div className="flex flex-wrap gap-2">
+                {[
+                  { id: "default", label: "跟随绘本 (默认)" },
+                  { id: "solo", label: "只要主角" },
+                  { id: "all", label: "小伙伴都在" },
+                ].map((item) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    disabled={jobBusy}
+                    onClick={() => setRoleScope(item.id as "default" | "solo" | "all")}
+                    className={`rounded-lg px-2.5 py-1 text-xs font-semibold transition ${
+                      roleScope === item.id
+                        ? "bg-[#ff6b2c] text-white shadow-sm"
+                        : "border border-[#f0e6d4] bg-white text-neutral-600 hover:border-[#ff6b2c]/40 hover:bg-[#fff4ee]/50"
+                    }`}
+                  >
+                    {item.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* 画面风格 */}
+            <div className="mt-3">
+              <p className="text-[11px] font-medium text-neutral-500 mb-1.5">画面质感</p>
+              <div className="flex flex-wrap gap-2">
+                {[
+                  { id: "default", label: "绘本原画 (默认)" },
+                  { id: "crayon", label: "蜡笔童趣风" },
+                  { id: "clay", label: "立体彩泥/剪纸" },
+                ].map((item) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    disabled={jobBusy}
+                    onClick={() => setArtStyle(item.id as "default" | "crayon" | "clay")}
+                    className={`rounded-lg px-2.5 py-1 text-xs font-semibold transition ${
+                      artStyle === item.id
+                        ? "bg-[#ff6b2c] text-white shadow-sm"
+                        : "border border-[#f0e6d4] bg-white text-neutral-600 hover:border-[#ff6b2c]/40 hover:bg-[#fff4ee]/50"
+                    }`}
+                  >
+                    {item.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* 补充愿望 */}
+            <div className="mt-3">
+              <input
+                type="text"
+                maxLength={40}
+                disabled={jobBusy}
+                value={customPrompt}
+                onChange={(e) => setCustomPrompt(e.target.value)}
+                placeholder="补充愿望（选填，如：大家都要站着、背景在草地上）"
+                className="w-full rounded-xl border border-[#f0e6d4] bg-white px-3 py-1.5 text-xs outline-none ring-[#ff6b2c]/40 focus:ring-1 text-neutral-700 placeholder:text-neutral-400"
+              />
+            </div>
+          </div>
+
           <button
             type="button"
             className="btn-disclosure mt-4"
@@ -883,22 +995,66 @@ export default function HomePage() {
                   alt="生成的歌绘本页"
                   className="w-full rounded-2xl border border-[#f0e6d4] bg-white shadow-sm"
                 />
-                <div className="flex flex-wrap gap-2">
-                  <button
-                    type="button"
-                    onClick={onDownload}
-                    className="btn-secondary"
-                  >
-                    下载图片
-                  </button>
-                  <button
-                    type="button"
-                    disabled={jobBusy}
-                    onClick={onNewGenerate}
-                    className="btn-quiet"
-                  >
-                    再画一张
-                  </button>
+                {/* 方案 C: 主次分流胶囊栏 */}
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 pt-1">
+                  {/* 左侧：再画一张（轻柔独立，避免误触） */}
+                  <div>
+                    <button
+                      type="button"
+                      disabled={jobBusy || isPrinting}
+                      onClick={onNewGenerate}
+                      className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 rounded-xl border border-[#f0e6d4] bg-white px-3.5 py-2 text-xs font-semibold text-neutral-600 transition hover:border-[#ff6b2c]/40 hover:bg-[#fff4ee]/60 hover:text-[#c2410c] shadow-sm disabled:opacity-50"
+                      title="保留当前歌词，换个构图再画一张"
+                    >
+                      <span aria-hidden>🔄</span>
+                      <span>再画一张</span>
+                    </button>
+                  </div>
+
+                  {/* 右侧：交付三组合（完全一致的质感与高宽规范） */}
+                  <div className="flex flex-wrap sm:flex-nowrap items-center gap-2">
+                    <button
+                      type="button"
+                      disabled={isPrinting}
+                      onClick={() => void onDownloadPdf()}
+                      className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 rounded-xl border border-orange-200/80 bg-orange-50/70 px-3.5 py-2 text-xs font-semibold text-[#c2410c] transition hover:bg-[#ff6b2c] hover:text-white shadow-sm disabled:opacity-50"
+                      title="直接静默下载标准的 A4 PDF 文件，专为打印贴墙设计"
+                    >
+                      {isPrinting ? (
+                        <>
+                          <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-[#c2410c] border-t-transparent" />
+                          <span>生成中…</span>
+                        </>
+                      ) : (
+                        <>
+                          <span aria-hidden>📄</span>
+                          <span>存为 PDF</span>
+                        </>
+                      )}
+                    </button>
+
+                    <button
+                      type="button"
+                      disabled={isPrinting}
+                      onClick={onDownload}
+                      className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 rounded-xl border border-[#f0e6d4] bg-white px-3.5 py-2 text-xs font-semibold text-neutral-700 transition hover:border-[#ff6b2c]/40 hover:bg-[#fff4ee]/60 hover:text-[#c2410c] shadow-sm disabled:opacity-50"
+                      title="下载高清绘本图片 (PNG)"
+                    >
+                      <span aria-hidden>🖼️</span>
+                      <span>存为图片</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      disabled={isPrinting}
+                      onClick={() => void onPrintA4()}
+                      className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 rounded-xl border border-[#f0e6d4] bg-white px-3.5 py-2 text-xs font-semibold text-neutral-700 transition hover:border-[#ff6b2c]/40 hover:bg-[#fff4ee]/60 hover:text-[#c2410c] shadow-sm disabled:opacity-50"
+                      title="调起系统打印机即刻出纸"
+                    >
+                      <span aria-hidden>🖨️</span>
+                      <span>打印</span>
+                    </button>
+                  </div>
                 </div>
                 {plan ? (
                   <details className="rounded-xl border border-[#f0e6d4] bg-[#fffdf8] px-3 py-2 text-xs text-neutral-600">

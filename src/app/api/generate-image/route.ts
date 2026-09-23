@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { cpaFetch, getCpaApiKey, imageModel as defaultImageModel, chatModels } from "@/lib/cpa";
-import type { ScenePlan } from "@/lib/types";
+import type { ScenePlan, UserPreference } from "@/lib/types";
 import { CUTE_ERRORS } from "@/lib/model-options";
 
 export const runtime = "nodejs";
@@ -11,6 +11,7 @@ type GenBody = {
   imageModel?: string;
   characterDescription?: string;
   referenceImageDataUrls?: string[];
+  userPreference?: UserPreference;
 };
 
 export async function POST(req: NextRequest) {
@@ -57,6 +58,7 @@ export async function POST(req: NextRequest) {
       selectedImageModel,
       characterDescription,
       referenceImageDataUrls,
+      body.userPreference,
     );
     return NextResponse.json({
       imageDataUrl: `data:image/png;base64,${generated.b64}`,
@@ -91,7 +93,33 @@ function dataUrlToB64(u: string): string {
   return u.replace(/^data:image\/\w+;base64,/, "");
 }
 
-function buildMergePrompt(plan: ScenePlan, characterDescription: string): string {
+function buildUserOverrides(pref?: UserPreference): string {
+  if (!pref) return "";
+  const lines: string[] = [];
+  if (pref.roleScope === "solo") {
+    lines.push("ROLE OVERRIDE: Focus strictly on the single main hero character. Do NOT crowd the page with secondary animals or kids.");
+  } else if (pref.roleScope === "all") {
+    lines.push("ROLE OVERRIDE: Must assemble ALL characters and friends from the book together into a lively, warm group scene (小伙伴都在).");
+  }
+
+  if (pref.artStyle === "crayon") {
+    lines.push("TEXTURE OVERRIDE: Render with charming wax-crayon and colored-pencil textures on soft grain paper, naive picture-book art style.");
+  } else if (pref.artStyle === "clay") {
+    lines.push("TEXTURE OVERRIDE: 3D paper-cut collage or soft clay-sculpture tactile texture, soft gentle lighting.");
+  }
+
+  if (pref.customPrompt?.trim()) {
+    const safe = pref.customPrompt.trim().slice(0, 80).replace(/["\n\r]/g, " ");
+    lines.push(`USER WISH: "${safe}" (incorporate seamlessly while keeping character designs intact).`);
+  }
+  return lines.length ? `\nUSER CUSTOM PREFERENCES:\n${lines.join("\n")}` : "";
+}
+
+function buildMergePrompt(
+  plan: ScenePlan,
+  characterDescription: string,
+  pref?: UserPreference,
+): string {
   const cast = (plan.cast || []).filter(Boolean).join(", ");
   const scene = String(plan.sceneLayout || "").trim();
   const charLine = [
@@ -103,6 +131,7 @@ function buildMergePrompt(plan: ScenePlan, characterDescription: string): string
   ]
     .filter(Boolean)
     .join(" ");
+  const userReq = buildUserOverrides(pref);
 
   return `EDIT the first attached image. It is the MAIN picture-book spread (PDF page N-1).
 
@@ -126,10 +155,15 @@ HARD FORBIDDEN:
 - replacing book characters with a different cute rooster/child
 - adult teaching instructions, lesson plans, parent tips, or "引导语" on the artwork (do NOT draw any lightbulb banner or instructional text like "引导孩子们观察...")
 
-${charLine}`;
+${charLine}${userReq}`;
 }
 
-function buildPrompt(plan: ScenePlan, characterDescription: string): string {
+function buildPrompt(
+  plan: ScenePlan,
+  characterDescription: string,
+  pref?: UserPreference,
+): string {
+  const userReq = buildUserOverrides(pref);
   const charLine = characterDescription
     ? `THE SAME character in ALL panels must match this description (critical): ${characterDescription}.`
     : "THE SAME cute simple child character in all panels, only poses change.";
@@ -147,7 +181,7 @@ Layout can vary with the song (comic strip, big hero + lyric card, or 2x4 circle
 - NO photorealism, NO watermarks, NO social-media logos.
 
 Lyric excerpt:
-${(plan.lyricExcerpt || "").slice(0, 220)}`;
+${(plan.lyricExcerpt || "").slice(0, 220)}${userReq}`;
 }
 
 async function generateWithCpa(
@@ -155,12 +189,13 @@ async function generateWithCpa(
   model: string,
   characterDescription: string,
   referenceImageDataUrls: string[],
+  pref?: UserPreference,
 ): Promise<{ b64: string; usedReferences: number; drawMode: string }> {
   const hasRefs = referenceImageDataUrls.length > 0;
   const useSpread = hasRefs || plan.layout === "spread";
   const prompt = useSpread
-    ? buildMergePrompt(plan, characterDescription)
-    : buildPrompt(plan, characterDescription);
+    ? buildMergePrompt(plan, characterDescription, pref)
+    : buildPrompt(plan, characterDescription, pref);
 
   if (hasRefs) {
     try {

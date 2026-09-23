@@ -125,6 +125,7 @@ async function runGenerateJob(jobId: string): Promise<void> {
         chatModel: priv.chatModel,
         imageModel: priv.imageModel,
         characterDescription,
+        userPreference: priv.userPreference,
       });
       await updateJob(jobId, {
         needsVision: false,
@@ -199,6 +200,7 @@ async function runGenerateJob(jobId: string): Promise<void> {
       referenceImageDataUrls: referenceImageDataUrls.length
         ? referenceImageDataUrls
         : undefined,
+      userPreference: priv.userPreference,
     });
 
     await updateJob(jobId, {

@@ -1,4 +1,4 @@
-import type { ScenePlan } from "@/lib/types";
+import type { ScenePlan, UserPreference } from "@/lib/types";
 
 export type JobStatus = "queued" | "running" | "done" | "error";
 
@@ -48,6 +48,7 @@ export type JobCreateInput = {
   imageModel?: string;
   characterDescription?: string;
   needsVision?: boolean;
+  userPreference?: UserPreference;
   /** Raw PDF bytes when image-PDF deferred vision is needed. */
   pdfBytes?: Buffer;
 };

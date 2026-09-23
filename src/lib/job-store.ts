@@ -2,6 +2,7 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 import type { JobCreateInput, JobRecord, JobStep, JobStatus } from "@/lib/job-types";
+import type { UserPreference } from "@/lib/types";
 
 const jobsDir = () => path.join(process.cwd(), "data", "jobs");
 const uploadsDir = () => path.join(process.cwd(), "data", "uploads");
@@ -125,6 +126,7 @@ export async function createJob(input: JobCreateInput): Promise<JobRecord> {
     imageModel: input.imageModel || "",
     characterDescription: input.characterDescription || "",
     needsVision,
+    userPreference: input.userPreference,
   });
 
   memory.set(id, record);
@@ -139,6 +141,7 @@ type PrivateInput = {
   imageModel: string;
   characterDescription: string;
   needsVision: boolean;
+  userPreference?: UserPreference;
 };
 
 function privatePath(id: string) {
@@ -293,6 +296,7 @@ export async function writePrivateInputAfterVision(
     chatModel: string;
     imageModel: string;
     characterDescription: string;
+    userPreference?: UserPreference;
   },
 ) {
   await writePrivateInput(id, { ...data, needsVision: false });
