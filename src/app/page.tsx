@@ -147,6 +147,8 @@ export default function HomePage() {
   const [customPrompt, setCustomPrompt] = useState("");
   const [isPrinting, setIsPrinting] = useState(false);
   const [isColoring, setIsColoring] = useState(false);
+  const [coloringSuccess, setColoringSuccess] = useState(false);
+  const [coloringStage, setColoringStage] = useState("提取线稿中…");
   const [modelHighlight, setModelHighlight] = useState<"chat" | "image" | "both" | null>(null);
 
   const isChatReady = Boolean(chatModel && chatModels.some((m) => m.id === chatModel));
@@ -623,9 +625,9 @@ export default function HomePage() {
   }
 
   function getListenUrl(): string | undefined {
-    const targetId = audioId || jobId;
-    if (typeof window === "undefined" || !targetId) return undefined;
-    return `${window.location.origin}/p/${targetId}`;
+    // 仅当用户真正上传并压缩了音频时才生成伴唱二维码，杜绝拿 jobId 冒充导致 404
+    if (typeof window === "undefined" || !audioId) return undefined;
+    return `${window.location.origin}/p/${audioId}`;
   }
 
   async function onPrintA4() {
@@ -643,6 +645,8 @@ export default function HomePage() {
   async function onDownloadColoring() {
     if (!imageDataUrl || isColoring || isPrinting) return;
     setIsColoring(true);
+    setColoringSuccess(false);
+    setColoringStage("构思线稿中…");
     try {
       let coloringDataUrl = "";
       // 1. Try AI-assisted line art API
@@ -665,8 +669,11 @@ export default function HomePage() {
         coloringDataUrl = await canvasEdgeDetect(imageDataUrl);
       }
 
+      setColoringStage("排版 A4 中…");
       const excerpt = plan?.lyricExcerpt || lyrics.split("\n").filter(Boolean).slice(0, 2).join("\n");
       await downloadColoringPdf(coloringDataUrl, songTitle, excerpt, getListenUrl());
+      setColoringSuccess(true);
+      setTimeout(() => setColoringSuccess(false), 2500);
     } catch (e) {
       setError(e instanceof Error ? e.message : "生成涂色卡失败，请重试");
     } finally {

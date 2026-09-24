@@ -21,23 +21,39 @@ export default function MobilePlayerPage({ params }: Props) {
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
-  // Attempt to load associated job metadata if id is a jobId
+  // Attempt to load associated job metadata, or fallback to audio metadata JSON
   useEffect(() => {
     let cancelled = false;
     async function loadMeta() {
       try {
-        const res = await fetch(`/api/jobs/${id}`);
-        if (res.ok) {
-          const data = await res.json();
+        // 1. First try reading from jobs (if id is a jobId or server is still warm)
+        const jobRes = await fetch(`/api/jobs/${id}`);
+        if (jobRes.ok) {
+          const data = await jobRes.json();
           if (!cancelled && data.job?.result) {
             const r = data.job.result;
             if (r.songTitle) setTitle(r.songTitle);
             if (r.lyrics) setLyrics(r.lyrics);
             if (r.imageDataUrl) setCoverUrl(r.imageDataUrl);
+            return;
           }
         }
       } catch {
-        // standalone audio without job record is fine
+        // next
+      }
+
+      // 2. Fallback: read directly from persistent audio metadata
+      try {
+        const audioMetaRes = await fetch(`/api/audio/${id}?meta=1`);
+        if (audioMetaRes.ok) {
+          const data = await audioMetaRes.json();
+          if (!cancelled && data.meta) {
+            if (data.meta.songTitle) setTitle(data.meta.songTitle);
+            if (data.meta.lyrics) setLyrics(data.meta.lyrics);
+          }
+        }
+      } catch {
+        // ignore
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -58,7 +74,7 @@ export default function MobilePlayerPage({ params }: Props) {
       el.play()
         .then(() => setIsPlaying(true))
         .catch(() => {
-          setError("请点击播放按钮开始听歌～");
+          setError("请轻触中间播放按钮开始听歌～");
         });
     }
   }
@@ -79,7 +95,7 @@ export default function MobilePlayerPage({ params }: Props) {
         onTimeUpdate={(e) => setCurrentTime(e.currentTarget.currentTime)}
         onLoadedMetadata={(e) => setDuration(e.currentTarget.duration)}
         onEnded={() => setIsPlaying(false)}
-        onError={() => setError("音频暂不可用或已过期")}
+        onError={() => setError("这首绘本暂未上传伴奏音频，快打开原曲一起给宝贝唱吧～")}
       />
 
       {/* Top Header */}
@@ -161,7 +177,9 @@ export default function MobilePlayerPage({ params }: Props) {
         </div>
 
         {error ? (
-          <p className="mt-3 text-center text-xs text-rose-600">{error}</p>
+          <div className="mt-4 rounded-xl border border-amber-200/80 bg-amber-50/90 px-4 py-2 text-center text-xs text-amber-800">
+            {error}
+          </div>
         ) : null}
 
         {/* Follow-along Lyrics Card */}

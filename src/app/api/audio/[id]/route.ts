@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { promises as fs, createReadStream } from "node:fs";
-import { getAudioFile } from "@/lib/audio-store";
+import { getAudioFile, getAudioMeta } from "@/lib/audio-store";
 import { Readable } from "node:stream";
 
 export const runtime = "nodejs";
@@ -12,6 +12,15 @@ export async function GET(
   const { id } = await params;
   if (!id || !/^[a-zA-Z0-9_-]+$/.test(id)) {
     return NextResponse.json({ error: "无效的音频编号" }, { status: 400 });
+  }
+
+  // Support reading metadata JSON
+  const url = new URL(req.url);
+  if (url.searchParams.get("meta") === "1" || req.headers.get("accept")?.includes("application/json")) {
+    const meta = await getAudioMeta(id);
+    if (meta) {
+      return NextResponse.json({ meta });
+    }
   }
 
   const audio = await getAudioFile(id);

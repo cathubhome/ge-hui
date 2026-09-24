@@ -41,6 +41,40 @@ function findFfmpeg(): string | null {
   return null;
 }
 
+export type AudioMeta = {
+  id: string;
+  songTitle?: string;
+  lyrics?: string;
+  createdAt: number;
+};
+
+export async function saveAudioMeta(id: string, meta: Partial<AudioMeta>): Promise<void> {
+  try {
+    await ensureAudioDir();
+    const metaPath = path.join(audioDir(), `${id}.json`);
+    const existing = await getAudioMeta(id).catch(() => null);
+    const data: AudioMeta = {
+      id,
+      songTitle: meta.songTitle || existing?.songTitle,
+      lyrics: meta.lyrics || existing?.lyrics,
+      createdAt: existing?.createdAt || Date.now(),
+    };
+    await fs.writeFile(metaPath, JSON.stringify(data, null, 2), "utf8");
+  } catch {
+    // metadata is best-effort
+  }
+}
+
+export async function getAudioMeta(id: string): Promise<AudioMeta | null> {
+  try {
+    const metaPath = path.join(audioDir(), `${id}.json`);
+    const raw = await fs.readFile(metaPath, "utf8");
+    return JSON.parse(raw) as AudioMeta;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Compress an audio buffer into ~32kbps mono AAC/M4A (~200KB - 250KB per song)
  * and save it to data/audio/<id>.m4a.
@@ -48,11 +82,16 @@ function findFfmpeg(): string | null {
  */
 export async function compressAndSaveAudio(
   inputBuf: Buffer,
-  format = "mp3"
+  format = "mp3",
+  initialMeta?: { songTitle?: string; lyrics?: string }
 ): Promise<{ audioId: string; fileName: string; sizeBytes: number }> {
   await ensureAudioDir();
   const audioId = randomUUID();
   const ffmpeg = findFfmpeg();
+
+  if (initialMeta) {
+    void saveAudioMeta(audioId, initialMeta);
+  }
 
   if (!ffmpeg) {
     // Fallback: save raw buffer directly without compression

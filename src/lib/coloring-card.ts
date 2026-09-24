@@ -1,10 +1,10 @@
 /**
  * Coloring Card PDF Generator
  * Generates a black-and-white A4 landscape coloring page with:
- * - Main line-art image (centered, 75% of page height)
+ * - Main line-art image (centered, ~72% of page height)
  * - Lyric tracing line at bottom (gray dashed text for kids to trace)
  * - Song title + branding bottom-left
- * - Listen QR code bottom-right (if available)
+ * - Listen QR code + companion text bottom-right (identical layout to挂画)
  */
 
 import QRCode from "qrcode";
@@ -13,7 +13,7 @@ const A4_W = 2970;
 const A4_H = 2100;
 const MARGIN_X = 120;
 const MARGIN_TOP = 80;
-const MARGIN_BOTTOM = 130;
+const MARGIN_BOTTOM = 150;
 
 export async function canvasEdgeDetect(imageDataUrl: string): Promise<string> {
   const img = await loadImage(imageDataUrl);
@@ -194,33 +194,42 @@ export async function downloadColoringPdf(
   canvas.height = A4_H;
   const ctx = canvas.getContext("2d")!;
 
+  // Pure white sheet background
   ctx.fillStyle = "#ffffff";
   ctx.fillRect(0, 0, A4_W, A4_H);
 
-  const imgAreaW = A4_W - MARGIN_X * 2;
-  const imgAreaH = A4_H - MARGIN_TOP - MARGIN_BOTTOM - 180;
-  const scale = Math.min(imgAreaW / img.width, imgAreaH / img.height);
-  const drawW = img.width * scale;
-  const drawH = img.height * scale;
-  const drawX = MARGIN_X + (imgAreaW - drawW) / 2;
-  const drawY = MARGIN_TOP + (imgAreaH - drawH) / 2;
+  // Main line art drawing area (safe headroom for tracing lyrics + footer)
+  const availW = A4_W - MARGIN_X * 2;
+  const availH = A4_H - MARGIN_TOP - MARGIN_BOTTOM - 190;
+  const scale = Math.min(availW / img.width, availH / img.height);
+  const drawW = Math.round(img.width * scale);
+  const drawH = Math.round(img.height * scale);
+  const drawX = Math.round(MARGIN_X + (availW - drawW) / 2);
+  const drawY = Math.round(MARGIN_TOP + (availH - drawH) / 2);
 
   ctx.drawImage(img, drawX, drawY, drawW, drawH);
 
+  // Subtle clean border around the coloring artwork
+  ctx.strokeStyle = "#E5E1D8";
+  ctx.lineWidth = 3;
+  ctx.strokeRect(drawX, drawY, drawW, drawH);
+
+  // Lyric tracing area (large dashed gray text for kids)
   if (lyricExcerpt) {
-    const lyricY = A4_H - MARGIN_BOTTOM - 120;
+    const lyricY = A4_H - MARGIN_BOTTOM - 130;
     const lines = lyricExcerpt.split("\n").filter(Boolean).slice(0, 2);
     ctx.font = "500 52px 'KaiTi', 'Noto Sans SC', sans-serif";
-    ctx.fillStyle = "#cccccc";
+    ctx.fillStyle = "#B0A89F";
     ctx.textAlign = "center";
     ctx.textBaseline = "top";
     ctx.setLineDash([8, 6]);
-    ctx.strokeStyle = "#dddddd";
+    ctx.strokeStyle = "#D1C9BE";
     ctx.lineWidth = 1.5;
     lines.forEach((line: string, i: number) => {
       const y = lyricY + i * 65;
-      ctx.fillText(line.slice(0, 60), A4_W / 2, y);
-      const textW = ctx.measureText(line.slice(0, 60)).width;
+      const textToDraw = line.slice(0, 60);
+      ctx.fillText(textToDraw, A4_W / 2, y);
+      const textW = ctx.measureText(textToDraw).width;
       ctx.beginPath();
       ctx.moveTo(A4_W / 2 - textW / 2, y + 55);
       ctx.lineTo(A4_W / 2 + textW / 2, y + 55);
@@ -229,35 +238,49 @@ export async function downloadColoringPdf(
     ctx.setLineDash([]);
   }
 
-  const footerY = A4_H - MARGIN_BOTTOM + 10;
-  ctx.font = "600 32px 'Noto Sans SC', sans-serif";
-  ctx.fillStyle = "#999999";
+  // Footer left: song title + subtitle
+  const footerY = A4_H - 55;
+  ctx.fillStyle = "#8C867D";
+  ctx.font = "bold 32px sans-serif";
   ctx.textAlign = "left";
-  ctx.textBaseline = "top";
-  const titleLabel = songTitle ? `${songTitle} · 涂色卡` : "歌绘 · 涂色卡";
-  ctx.fillText(titleLabel, MARGIN_X, footerY);
-  ctx.font = "400 24px 'Noto Sans SC', sans-serif";
-  ctx.fillStyle = "#bbbbbb";
-  ctx.fillText("歌绘 ge-hui · 一首歌一张画一起唱", MARGIN_X, footerY + 42);
+  ctx.textBaseline = "alphabetic";
+  const titleText = `${(songTitle || "歌绘").trim()} · 启蒙涂色卡`;
+  ctx.fillText(titleText, MARGIN_X + 10, footerY);
 
+  // Footer right: exact companion layout as挂画
   if (listenUrl) {
     try {
       const qrDataUrl = await QRCode.toDataURL(listenUrl, {
-        width: 140,
         margin: 1,
-        color: { dark: "#000000", light: "#ffffff" },
+        width: 140,
+        color: { dark: "#1A1A1A", light: "#FFFFFF" },
       });
       const qrImg = await loadImage(qrDataUrl);
-      const qrX = A4_W - MARGIN_X - 140;
-      const qrY = footerY - 20;
-      ctx.drawImage(qrImg, qrX, qrY, 140, 140);
-      ctx.font = "400 20px 'Noto Sans SC', sans-serif";
-      ctx.fillStyle = "#aaaaaa";
-      ctx.textAlign = "center";
-      ctx.fillText("扫码听伴唱", qrX + 70, qrY + 148);
-    } catch {}
+      const qrSize = 110;
+      const qrX = A4_W - MARGIN_X - qrSize;
+      const qrY = A4_H - MARGIN_BOTTOM + 20;
+
+      ctx.drawImage(qrImg, qrX, qrY, qrSize, qrSize);
+      ctx.strokeStyle = "#E5E1D8";
+      ctx.lineWidth = 2;
+      ctx.strokeRect(qrX, qrY, qrSize, qrSize);
+
+      ctx.textAlign = "right";
+      ctx.fillStyle = "#3F3F46";
+      ctx.font = "bold 26px sans-serif";
+      ctx.fillText("📱 微信扫码即听伴唱", qrX - 18, qrY + 45);
+
+      ctx.fillStyle = "#8C867D";
+      ctx.font = "normal 22px sans-serif";
+      ctx.fillText("手机放桌上，每天边指边唱 🎵", qrX - 18, qrY + 85);
+    } catch {
+      drawFallbackStamp(ctx, footerY);
+    }
+  } else {
+    drawFallbackStamp(ctx, footerY);
   }
 
+  // Minimal valid A4 PDF generation
   const jpegDataUrl = canvas.toDataURL("image/jpeg", 0.95);
   const base64 = jpegDataUrl.replace(/^data:image\/jpeg;base64,/, "");
   const binary = atob(base64);
@@ -278,6 +301,17 @@ export async function downloadColoringPdf(
   link.click();
   document.body.removeChild(link);
   setTimeout(() => URL.revokeObjectURL(url), 10000);
+}
+
+function drawFallbackStamp(ctx: CanvasRenderingContext2D, footerY: number) {
+  ctx.textAlign = "right";
+  ctx.font = "normal 28px sans-serif";
+  ctx.fillStyle = "#8C867D";
+  ctx.fillText(
+    "A4 亲子涂鸦卡 · 涂完贴在墙上一起唱 🎵",
+    A4_W - MARGIN_X - 10,
+    footerY,
+  );
 }
 
 function buildMinimalPdf(jpegBytes: Uint8Array, imgW: number, imgH: number): Blob {
