@@ -438,8 +438,23 @@ export default function HomePage() {
       setImageDataUrl("");
     } else if (job.status === "done") {
       setStep("done");
-      if (job.result?.imageDataUrl) setImageDataUrl(job.result.imageDataUrl);
+      setIsSampleMode(false);
+      if (job.result?.imageDataUrl) {
+        setImageDataUrl(job.result.imageDataUrl);
+        // 保存历史画册
+        const savedList = saveBookHistoryItem({
+          id: job.id,
+          songTitle: job.result.songTitle || songTitle || "启蒙儿歌",
+          lyrics: job.result.lyrics || lyrics,
+          imageDataUrl: job.result.imageDataUrl,
+          plan: job.result.plan || plan,
+          audioId: job.result.audioId || audioId,
+        });
+        setHistoryList([...savedList]);
+      }
       setError("");
+      // 从服务端权威同步最新配额
+      void refreshQuota();
       // Keep job id so refresh still shows result; user can start a new one later.
     } else if (job.status === "error") {
       setStep("idle");
@@ -798,6 +813,17 @@ export default function HomePage() {
         throw new Error(data.error || "没能开始生成");
       }
 
+      // 立即乐观扣减今日免费额度（体感 0 延迟，3/3 -> 2/3）
+      setQuota((prev) =>
+        prev && !prev.isVip
+          ? {
+              ...prev,
+              remainingToday: Math.max(0, prev.remainingToday - 1),
+              canGenerate: Math.max(0, prev.remainingToday - 1) > 0,
+            }
+          : prev
+      );
+
       try {
         localStorage.setItem(JOB_LS_KEY, data.job.id);
       } catch {
@@ -993,8 +1019,9 @@ export default function HomePage() {
               点击即可载入这首经典儿歌，为宝贝制作同款精美绘本～
             </p>
           </div>
-          <span className="btn-secondary pointer-events-none shrink-0 sm:self-center">
-            填入这首歌
+          <span className="pointer-events-none flex shrink-0 items-center gap-1 rounded-full border border-orange-200/90 bg-white/95 px-3.5 py-1.5 text-xs font-bold text-[#c2410c] shadow-2xs transition-all duration-300 group-hover:border-[#ff6b2c] group-hover:bg-[#fff4ee] group-hover:shadow-xs sm:self-center">
+            <span>一键做同款 ✨</span>
+            <span className="text-sm font-bold text-orange-400 transition-transform duration-300 group-hover:translate-x-0.5" aria-hidden>›</span>
           </span>
         </button>
       </section>

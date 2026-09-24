@@ -1,18 +1,5 @@
 import type { Metadata } from "next";
-import { Nunito, ZCOOL_KuaiLe } from "next/font/google";
 import "./globals.css";
-
-const nunito = Nunito({
-  variable: "--font-nunito",
-  subsets: ["latin"],
-  weight: ["400", "600", "700", "800"],
-});
-
-const display = ZCOOL_KuaiLe({
-  variable: "--font-display",
-  subsets: ["latin"],
-  weight: "400",
-});
 
 export const metadata: Metadata = {
   title: "歌绘 — 歌曲变童趣绘本",
@@ -26,7 +13,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="zh-CN">
-      <body className={`${nunito.variable} ${display.variable} antialiased`}>
+      <body className="antialiased font-sans">
         {children}
       </body>
     </html>
