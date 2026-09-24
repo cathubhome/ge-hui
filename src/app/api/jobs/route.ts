@@ -9,6 +9,7 @@ import {
 } from "@/lib/job-store";
 import { startGenerateJob } from "@/lib/job-runner";
 import type { UserPreference } from "@/lib/types";
+import { checkQuota, consumeQuota, extractClientIp } from "@/lib/rate-limiter";
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
@@ -121,6 +122,23 @@ export async function POST(req: NextRequest) {
       );
     }
 
+        // Rate Limit & Daily Quota Guard (Anti-Abuse & Monetization Protection)
+    const ip = extractClientIp(req.headers);
+    const authHeader = req.headers.get("authorization") || "";
+    const vipToken = authHeader.replace(/^Bearer\s+/i, "").trim() || undefined;
+    const quota = await checkQuota(ip, vipToken);
+
+    if (!quota.canGenerate) {
+      return NextResponse.json(
+        {
+          error: quota.reason || "今日免费额度已用完",
+          quotaExceeded: true,
+          remainingToday: quota.remainingToday,
+        },
+        { status: 429 },
+      );
+    }
+
     const job = await createJob({
       lyrics,
       songTitle,
@@ -135,6 +153,7 @@ export async function POST(req: NextRequest) {
     });
 
     // Fire-and-forget — do not await the full pipeline.
+    void consumeQuota(ip);
     startGenerateJob(job.id);
 
     return NextResponse.json({ job: publicJobSnapshot(job) }, { status: 201 });

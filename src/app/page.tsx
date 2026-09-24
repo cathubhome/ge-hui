@@ -1,9 +1,31 @@
 "use client";
 
+function getOrCreateDeviceId(): string {
+  if (typeof window === "undefined") return "server-env";
+  const KEY = "ge-hui-device-fingerprint";
+  let devId = localStorage.getItem(KEY);
+  if (!devId) {
+    const screenInfo = `${window.screen.width}x${window.screen.height}x${window.screen.colorDepth}`;
+    const navInfo = `${navigator.language}_${navigator.hardwareConcurrency || 4}`;
+    const rand = Math.random().toString(36).substring(2, 10).toUpperCase();
+    let hash = 0;
+    const str = screenInfo + navInfo;
+    for (let i = 0; i < str.length; i++) {
+      hash = (hash << 5) - hash + str.charCodeAt(i);
+      hash |= 0;
+    }
+    devId = `DEV-${rand}-${Math.abs(hash).toString(16).toUpperCase()}`;
+    localStorage.setItem(KEY, devId);
+  }
+  return devId;
+}
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ScenePlan, UserPreference } from "@/lib/types";
 import { triggerNativePrintA4, downloadA4Pdf } from "@/lib/print-canvas";
 import { downloadColoringPdf, canvasEdgeDetect } from "@/lib/coloring-card";
+import { SAMPLE_BOOKS, type SampleBook } from "@/lib/sample-books";
+import { loadBookHistory, saveBookHistoryItem, clearBookHistory, type HistoryBookItem } from "@/lib/book-history";
+import { SONG_CATEGORIES, SONG_PRESETS, type SongCategory, type SongPreset } from "@/lib/song-presets";
 import { cleanTitleFromFileName } from "@/lib/file-title";
 import type { JobRecord, JobStatus } from "@/lib/job-types";
 
@@ -147,6 +169,197 @@ export default function HomePage() {
   const [customPrompt, setCustomPrompt] = useState("");
   const [isPrinting, setIsPrinting] = useState(false);
   const [isColoring, setIsColoring] = useState(false);
+  const [inspirationBatch, setInspirationBatch] = useState(0);
+  const [showAiComposer, setShowAiComposer] = useState(false);
+  const [aiTopic, setAiTopic] = useState("");
+  const [isComposing, setIsComposing] = useState(false);
+
+  const [historyList, setHistoryList] = useState<HistoryBookItem[]>([]);
+  const [showHistoryDrawer, setShowHistoryDrawer] = useState(false);
+  const [activeSampleId, setActiveSampleId] = useState<string>("sample-head-shoulders");
+  const [sampleCarouselIndex, setSampleCarouselIndex] = useState(0);
+  const [isSampleMode, setIsSampleMode] = useState<boolean>(false);
+
+  const [quota, setQuota] = useState<{ remainingToday: number; maxDaily: number; isVip: boolean; canGenerate: boolean } | null>(null);
+  const [showQuotaModal, setShowQuotaModal] = useState(false);
+  const [vipCodeInput, setVipCodeInput] = useState("");
+  const [isRedeeming, setIsRedeeming] = useState(false);
+  const [redeemMsg, setRedeemMsg] = useState("");
+
+  const currentPresets = useMemo(() => {
+    const start = (inspirationBatch * 3) % SONG_PRESETS.length;
+    return SONG_PRESETS.slice(start, start + 3);
+  }, [inspirationBatch]);
+
+  useEffect(() => {
+    setHistoryList(loadBookHistory());
+  }, []);
+
+  const refreshQuota = useCallback(async () => {
+    try {
+      const vipToken = typeof window !== "undefined" ? localStorage.getItem("ge-hui-vip-token") || "" : "";
+      const devId = typeof window !== "undefined" ? getOrCreateDeviceId() : "";
+      const headers: Record<string, string> = {};
+      if (vipToken) headers["Authorization"] = "Bearer " + vipToken;
+      if (devId) headers["X-Device-Id"] = devId;
+
+      const res = await fetch("/api/quota", { headers });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.quota) setQuota(data.quota);
+      }
+    } catch {}
+  }, []);
+
+  useEffect(() => {
+    void refreshQuota();
+  }, [refreshQuota]);
+
+  function openSampleGallery() {
+    setIsSampleMode(true);
+    setStep("done");
+    applySampleBook(SAMPLE_BOOKS[sampleCarouselIndex || 0]);
+  }
+
+  function closeSampleGallery() {
+    setIsSampleMode(false);
+    setImageDataUrl("");
+    setPlan(null);
+    setStep("idle");
+    setSongTitle("");
+    setLyrics("");
+  }
+
+  function adoptSampleForCustomization(sample: SampleBook) {
+    setSongTitle(sample.title);
+    setLyrics(sample.lyrics);
+    setIsSampleMode(false);
+    setImageDataUrl("");
+    setPlan(null);
+    setStep("idle");
+    setUploadTip(`✨ 已将《${sample.title}》载入左侧，可以定制宝宝专属角色并生成啦～`);
+    document.getElementById("lyrics-textarea")?.scrollIntoView({ behavior: "smooth", block: "center" });
+  }
+
+  function applySampleBook(sample: SampleBook) {
+    setActiveSampleId(sample.id);
+    setIsSampleMode(true);
+    setSongTitle(sample.title);
+    setLyrics(sample.lyrics);
+    setImageDataUrl(sample.imageUrl);
+    setPlan(sample.plan);
+    setStep("done");
+    setError("");
+
+    if (sample.sampleAudio) {
+      void fetch(sample.sampleAudio)
+        .then((res) => (res.ok ? res.blob() : null))
+        .then((blob) => {
+          if (!blob) return;
+          const form = new FormData();
+          form.append("file", blob, `${sample.id}.m4a`);
+          return fetch("/api/transcribe", { method: "POST", body: form });
+        })
+        .then((res) => (res && res.ok ? res.json() : null))
+        .then((data) => {
+          if (data?.audioId) setAudioId(data.audioId);
+        })
+        .catch(() => {});
+    }
+  }
+
+  function restoreHistoryBook(item: HistoryBookItem) {
+    setIsSampleMode(false);
+    setSongTitle(item.songTitle);
+    setLyrics(item.lyrics);
+    setImageDataUrl(item.imageDataUrl);
+    setPlan(item.plan || null);
+    setAudioId(item.audioId || null);
+    setStep("done");
+    setShowHistoryDrawer(false);
+    setError("");
+    setUploadTip(`✨ 已为你恢复历史画作《${item.songTitle}》，可随时导出 PDF、打印或涂色～`);
+  }
+
+  async function applySongPreset(preset: SongPreset) {
+    setSongTitle(preset.title);
+    setLyrics(preset.lyrics);
+    setNeedsVision(false);
+    setPendingPdfBase64(null);
+    setUploadTip(`✨ 已为你载入经典儿歌《${preset.title}》，点下方「生成歌绘本」即可出画～`);
+
+    if (preset.sampleAudio) {
+      try {
+        const audioRes = await fetch(preset.sampleAudio);
+        if (audioRes.ok) {
+          const blob = await audioRes.blob();
+          const form = new FormData();
+          form.append("file", blob, `${preset.id}.mp3`);
+          const trRes = await fetch("/api/transcribe", { method: "POST", body: form });
+          if (trRes.ok) {
+            const data = await trRes.json();
+            if (data.audioId) setAudioId(data.audioId);
+          }
+        }
+      } catch {}
+    } else {
+      setAudioId(null);
+    }
+  }
+
+  async function onComposeRhyme() {
+    if (!aiTopic.trim() || isComposing) return;
+    setIsComposing(true);
+    setError("");
+    try {
+      const res = await fetch("/api/compose-rhyme", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ topic: aiTopic.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "童谣创作失败");
+      if (data.title) setSongTitle(data.title);
+      if (data.lyrics) setLyrics(data.lyrics);
+      setAudioId(null);
+      setShowAiComposer(false);
+      setAiTopic("");
+      setUploadTip(`✨ AI 已为宝贝创作出童谣《${data.title || aiTopic}》，点下方「生成歌绘本」即可出画～`);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "创作童谣出错了");
+    } finally {
+      setIsComposing(false);
+    }
+  }
+
+  async function onRedeemVipCode() {
+    if (!vipCodeInput.trim() || isRedeeming) return;
+    setIsRedeeming(true);
+    setRedeemMsg("");
+    try {
+      const res = await fetch("/api/activate-code", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code: vipCodeInput.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "激活码校验失败");
+      if (data.vipToken) {
+        localStorage.setItem("ge-hui-vip-token", data.vipToken);
+      }
+      setRedeemMsg(data.message || "恭喜！已解锁无限次绘本创作特权～");
+      void refreshQuota();
+      setTimeout(() => {
+        setShowQuotaModal(false);
+        setVipCodeInput("");
+        setRedeemMsg("");
+      }, 1500);
+    } catch (e) {
+      setRedeemMsg(e instanceof Error ? e.message : "激活失败，请检查输入");
+    } finally {
+      setIsRedeeming(false);
+    }
+  }
   const [coloringSuccess, setColoringSuccess] = useState(false);
   const [coloringStage, setColoringStage] = useState("提取线稿中…");
   const [modelHighlight, setModelHighlight] = useState<"chat" | "image" | "both" | null>(null);
@@ -763,7 +976,7 @@ export default function HomePage() {
         <button
           type="button"
           onClick={tryDemoSong}
-          className="flex w-full cursor-pointer flex-col gap-3 p-3 text-left transition hover:bg-[#fff4ee]/50 sm:flex-row sm:items-center sm:gap-4 sm:p-4"
+          className="group flex w-full cursor-pointer flex-col gap-3 p-3 text-left transition-all duration-300 hover:bg-[#fff8f3] sm:flex-row sm:items-center sm:gap-4 sm:p-4"
         >
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
@@ -777,7 +990,7 @@ export default function HomePage() {
               生成后的绘本页可以长这样
             </p>
             <p className="mt-1 text-xs leading-relaxed text-neutral-500">
-              点这整张卡片，会填好歌名和歌词，再点「生成歌绘本」即可～
+              点击即可载入这首经典儿歌，为宝贝制作同款精美绘本～
             </p>
           </div>
           <span className="btn-secondary pointer-events-none shrink-0 sm:self-center">
@@ -886,7 +1099,91 @@ export default function HomePage() {
             
           </div>
 
-          <label className="mt-5 block text-sm font-semibold text-neutral-800">歌词</label>
+          <div className="mt-5 flex items-center justify-between">
+            <label className="text-sm font-semibold text-neutral-800 flex items-center gap-1.5">
+              <span>歌词</span>
+              <span className="text-[11px] font-normal text-neutral-400">（支持中英文，自动分行）</span>
+            </label>
+            <button
+              type="button"
+              disabled={jobBusy}
+              onClick={() => setShowAiComposer((v) => !v)}
+              className="inline-flex items-center gap-1 rounded-full border border-orange-200/80 bg-orange-50/70 px-2.5 py-0.5 text-[11px] font-medium text-[#c2410c] transition hover:bg-[#fff4ee] hover:border-[#ff6b2c]/50"
+              title="根据宝宝名字或习惯，让 AI 秒写一首押韵短童谣"
+            >
+              <span aria-hidden>🪄</span>
+              <span>{showAiComposer ? "收起创作" : "AI 帮我写儿歌"}</span>
+            </button>
+          </div>
+
+          {showAiComposer ? (
+            <div className="mt-2 rounded-xl border border-orange-200/80 bg-[#fffbf7] p-2.5 transition">
+              <p className="text-[11px] font-medium text-neutral-600">
+                告诉 AI 宝贝的名字或小习惯，为 Ta 创作一首押韵小童谣：
+              </p>
+              <div className="mt-1.5 flex gap-1.5">
+                <input
+                  type="text"
+                  maxLength={30}
+                  disabled={jobBusy || isComposing}
+                  value={aiTopic}
+                  onChange={(e) => setAiTopic(e.target.value)}
+                  placeholder="如：宝宝乐乐不肯刷牙 / 喜欢大恐龙"
+                  className="flex-1 rounded-lg border border-[#f0e6d4] bg-white px-2.5 py-1 text-xs outline-none ring-[#ff6b2c]/40 focus:ring-1 text-neutral-700 placeholder:text-neutral-400"
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") void onComposeRhyme();
+                  }}
+                />
+                <button
+                  type="button"
+                  disabled={jobBusy || isComposing || !aiTopic.trim()}
+                  onClick={() => void onComposeRhyme()}
+                  className="inline-flex items-center gap-1 rounded-lg bg-[#ff6b2c] px-3 py-1 text-xs font-semibold text-white transition hover:bg-[#ef5a1a] disabled:opacity-50 whitespace-nowrap shadow-2xs"
+                >
+                  {isComposing ? (
+                    <>
+                      <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                      <span>写歌中…</span>
+                    </>
+                  ) : (
+                    <span>生成</span>
+                  )}
+                </button>
+              </div>
+            </div>
+          ) : null}
+
+          <div className="mt-2 flex items-center justify-between gap-1 text-[11px]">
+            <div className="flex items-center gap-1 text-neutral-400 shrink-0">
+              <span aria-hidden>💡</span>
+              <span>试试经典：</span>
+            </div>
+            <div className="flex items-center gap-1.5 flex-wrap">
+              {currentPresets.map((preset) => (
+                <button
+                  key={preset.id}
+                  type="button"
+                  disabled={jobBusy}
+                  onClick={() => void applySongPreset(preset)}
+                  className="inline-flex items-center gap-1 rounded-lg border border-[#f0e6d4] bg-white px-2 py-0.5 text-[11px] font-medium text-neutral-700 transition hover:border-[#ff6b2c]/50 hover:bg-[#fff7f2] hover:text-[#c2410c] shadow-2xs whitespace-nowrap"
+                  title={preset.tag}
+                >
+                  <span aria-hidden>{preset.icon}</span>
+                  <span>{preset.title.split("(")[0].trim().slice(0, 10)}</span>
+                </button>
+              ))}
+              <button
+                type="button"
+                disabled={jobBusy}
+                onClick={() => setInspirationBatch((v) => v + 1)}
+                className="inline-flex items-center gap-0.5 text-[11px] text-neutral-400 hover:text-[#c2410c] transition ml-1"
+                title="换另外3首经典儿歌"
+              >
+                <span>换一批</span>
+                <span aria-hidden>🔄</span>
+              </button>
+            </div>
+          </div>
           <textarea
             className="mt-2 min-h-[140px] w-full resize-y rounded-2xl border border-[#f0e6d4] bg-[#fffdf8] px-3 py-3 text-sm leading-relaxed outline-none ring-[#ff6b2c]/40 focus:ring-2 disabled:opacity-60"
             placeholder="把歌词粘贴在这里，或上传文件自动整理…"
@@ -1038,11 +1335,33 @@ export default function HomePage() {
             </div>
           ) : null}
 
+          {/* 每日免费额度与防白嫖指示 */}
+          <div className="flex items-center justify-between text-[11px] text-neutral-400 px-1 mb-1 mt-4">
+            <span>
+              {quota?.isVip ? (
+                <span className="text-[#c2410c] font-semibold">✨ VIP 会员 · 无限次随心创作</span>
+              ) : (
+                <span>
+                  今日免费额度：<strong className="text-neutral-700">{quota?.remainingToday ?? 3}</strong> / 3 次 (0点重置)
+                </span>
+              )}
+            </span>
+            {!quota?.isVip ? (
+              <button
+                type="button"
+                onClick={() => setShowQuotaModal(true)}
+                className="text-[#c2410c] hover:underline font-medium cursor-pointer"
+              >
+                解锁无限次 ▾
+              </button>
+            ) : null}
+          </div>
+
           <button
             type="button"
             disabled={jobBusy || (!lyrics.trim() && isBothModelsReady)}
             onClick={!isBothModelsReady ? handleModelMissingClick : onGenerate}
-            className={`btn-primary mt-3 w-full flex items-center justify-center gap-2 ${
+            className={`w-full flex items-center justify-center gap-2 h-11 rounded-2xl bg-gradient-to-r from-[#ff7d44] via-[#f97336] to-[#f05c1e] text-white font-bold text-sm tracking-wide shadow-md shadow-orange-500/20 hover:opacity-95 active:scale-[0.99] transition-all mt-3 ${
               !isBothModelsReady
                 ? "bg-neutral-300 hover:bg-neutral-400 text-neutral-700 shadow-none cursor-pointer"
                 : ""
@@ -1101,20 +1420,145 @@ export default function HomePage() {
         <aside className="lg:sticky lg:top-6">
           <div className="paper-card doodle-bg overflow-hidden rounded-3xl p-5 sm:p-6">
             <div className="mb-3 flex items-center justify-between gap-2">
-              <h2 className="font-display text-lg text-neutral-800">绘本小舞台</h2>
-              {imageDataUrl ? (
-                <span className="rounded-full border border-[#f0e6d4] bg-white/80 px-2.5 py-0.5 text-[11px] font-medium text-neutral-500">
-                  适合打印 · 一页启蒙绘本
-                </span>
-              ) : null}
+              <div className="flex items-center gap-2">
+                <h2 className="font-display text-lg font-bold text-neutral-800">绘本小舞台</h2>
+                {isSampleMode ? (
+                  <span className="rounded-full border border-orange-200/90 bg-orange-50 px-2 py-0.5 text-[11px] font-semibold text-[#c2410c]">
+                    官方精选展厅
+                  </span>
+                ) : null}
+              </div>
+
+              {/* 右上角常驻双功能小胶囊：官方精选 (12) 与 我的画册 (N) */}
+              <div className="flex items-center gap-1.5">
+                {/* 1. 官方精选展厅切换 */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (isSampleMode) {
+                      closeSampleGallery();
+                    } else {
+                      openSampleGallery();
+                    }
+                  }}
+                  className={`inline-flex items-center gap-1 rounded-xl border px-2.5 py-1 text-xs font-semibold shadow-2xs transition cursor-pointer ${
+                    isSampleMode
+                      ? "border-[#ff6b2c] bg-orange-50 text-[#c2410c] font-bold"
+                      : "border-[#f0e6d4] bg-white text-neutral-700 hover:border-orange-300 hover:bg-[#fff7f2]"
+                  }`}
+                  title="随时查看12套官方世界经典样板"
+                >
+                  <span aria-hidden>📚</span>
+                  <span>{isSampleMode ? "收起展厅" : "官方精选 (12)"}</span>
+                </button>
+
+                {/* 2. 我的画册 */}
+                <div className="relative">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (historyList.length === 0) {
+                        setUploadTip("💡 还没有生成记录哦，左侧做一张绘本就会自动为您保存在这里～");
+                        return;
+                      }
+                      setShowHistoryDrawer((v) => !v);
+                    }}
+                    className={`inline-flex items-center gap-1 rounded-xl border px-2.5 py-1 text-xs font-semibold shadow-2xs transition cursor-pointer ${
+                      historyList.length > 0
+                        ? "border-[#f0e6d4] bg-white text-neutral-700 hover:border-[#ff6b2c]/50 hover:bg-[#fff7f2]"
+                        : "border-[#f0e6d4]/60 bg-white/70 text-neutral-400"
+                    }`}
+                    title="查看本地保存的全部绘本画作"
+                  >
+                    <span aria-hidden>🕓</span>
+                    <span>画册 {historyList.length > 0 ? `(${historyList.length})` : ""}</span>
+                    {historyList.length > 0 ? <span className="text-[10px] text-neutral-400">▾</span> : null}
+                  </button>
+
+                  {/* 历史画册抽屉 */}
+                  {showHistoryDrawer && historyList.length > 0 ? (
+                    <div className="absolute right-0 top-9 z-30 w-72 rounded-2xl border border-[#f0e6d4] bg-white p-3 shadow-xl">
+                      <div className="flex items-center justify-between border-b border-[#f0e6d4]/60 pb-2">
+                        <span className="text-xs font-bold text-neutral-800">
+                          我的创作历史 (点击即复原)
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            clearBookHistory();
+                            setHistoryList([]);
+                            setShowHistoryDrawer(false);
+                          }}
+                          className="text-[11px] text-neutral-400 hover:text-rose-500 cursor-pointer"
+                        >
+                          清空
+                        </button>
+                      </div>
+                      <div className="mt-2.5 max-h-60 space-y-1.5 overflow-y-auto pr-1">
+                        {historyList.map((hist) => (
+                          <div
+                            key={hist.id}
+                            onClick={() => restoreHistoryBook(hist)}
+                            className="flex items-center gap-2.5 rounded-xl border border-[#f0e6d4]/70 p-2 cursor-pointer hover:border-[#ff6b2c]/60 hover:bg-[#fff7f2] transition group"
+                          >
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img
+                              src={hist.imageDataUrl}
+                              alt={hist.songTitle}
+                              className="h-10 w-14 rounded-lg object-cover border border-neutral-100 shrink-0"
+                            />
+                            <div className="flex-1 min-w-0">
+                              <p className="line-clamp-1 text-xs font-bold text-neutral-800 group-hover:text-[#c2410c]">
+                                {hist.songTitle}
+                              </p>
+                              <p className="text-[10px] text-neutral-400 mt-0.5">
+                                点击切回此版本并导出
+                              </p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
+                </div>
+              </div>
             </div>
 
             {step === "idle" && !imageDataUrl && !error ? (
-              <div className="doodle-bg soft-grid rounded-2xl border border-dashed border-[#f0e6d4] px-4 py-6 text-center">
-                <p className="text-sm font-medium text-neutral-600">绘本还在等你点开魔法～</p>
-                <p className="mt-1 text-xs text-neutral-400">
-                  左边填好歌词或上传歌曲，右边就会长出一页小画
+              <div className="rounded-2xl border border-[#f0e6d4] bg-[#fffdf8] p-5 text-center shadow-xs transition">
+                <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-orange-50 text-2xl border border-orange-100">
+                  🎨
+                </div>
+                <h3 className="mt-3 text-base font-bold text-neutral-800">
+                  期待宝贝的专属绘本诞生～
+                </h3>
+                <p className="mt-1 text-xs text-neutral-500 max-w-xs mx-auto leading-relaxed">
+                  在左侧填入儿歌或上传歌曲，AI 将为宝宝量身构思独一无二的分镜插画
                 </p>
+
+                <div className="my-4 flex items-center gap-3">
+                  <div className="h-px flex-1 bg-[#f0e6d4]" />
+                  <span className="text-[11px] font-medium text-neutral-400">或者 · 没时间自己做？</span>
+                  <div className="h-px flex-1 bg-[#f0e6d4]" />
+                </div>
+
+                <div className="rounded-xl border border-orange-100 bg-white/80 p-3.5 text-center">
+                  <p className="text-xs font-bold text-neutral-800 flex items-center justify-center gap-1">
+                    <span>📚</span> 官方精选经典绘本（12套世界名曲）
+                  </p>
+                  <p className="mt-1 text-[11px] text-neutral-500 leading-relaxed">
+                    涵盖两只老虎、小星星、拍手歌等高清大图与伴唱码 · 无需等待直接免费打印
+                  </p>
+                  <button
+                    type="button"
+                    onClick={openSampleGallery}
+                    className="mt-3 inline-flex items-center justify-center gap-1.5 rounded-xl bg-[#ff6b2c] px-4 py-2 text-xs font-bold text-white shadow-xs hover:bg-[#ef5a1a] transition hover:scale-[1.02] active:scale-95 cursor-pointer"
+                  >
+                    <span>📖</span>
+                    <span>打开精选绘本展厅 · 开箱即打印带走</span>
+                    <span aria-hidden>➔</span>
+                  </button>
+                </div>
               </div>
             ) : null}
 
@@ -1166,10 +1610,88 @@ export default function HomePage() {
               <div className="space-y-3">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
+                  key={imageDataUrl}
                   src={imageDataUrl}
                   alt="生成的歌绘本页"
-                  className="w-full rounded-2xl border border-[#f0e6d4] bg-white shadow-sm"
+                  className="w-full aspect-[3/2] object-cover rounded-2xl border border-[#f0e6d4] bg-white shadow-sm transition-all duration-300 animate-in fade-in"
                 />
+
+                {/* 样板模式专属：沉浸式翻书导览栏（置于大画正下方） */}
+                {isSampleMode ? (
+                  <div className="flex items-center justify-between rounded-xl border border-[#f0e6d4]/80 bg-[#fffdf8] px-3.5 py-2 shadow-2xs transition">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const prevIdx = (sampleCarouselIndex - 1 + SAMPLE_BOOKS.length) % SAMPLE_BOOKS.length;
+                        setSampleCarouselIndex(prevIdx);
+                        applySampleBook(SAMPLE_BOOKS[prevIdx]);
+                      }}
+                      className="group flex items-center gap-1.5 text-xs font-semibold text-neutral-600 hover:text-[#c2410c] transition cursor-pointer"
+                      title="翻看上一本官方精选"
+                    >
+                      <span className="flex h-5 w-5 items-center justify-center rounded-full bg-white border border-[#f0e6d4] shadow-2xs group-hover:border-[#ff6b2c]/60 group-hover:bg-[#fff4ee] text-[10px]">‹</span>
+                      <span>上一本</span>
+                      <span className="hidden sm:inline text-[10px] text-neutral-400 font-normal">
+                        ({SAMPLE_BOOKS[(sampleCarouselIndex - 1 + SAMPLE_BOOKS.length) % SAMPLE_BOOKS.length].title.split("(")[0].trim().slice(0, 8)})
+                      </span>
+                    </button>
+
+                    {/* 珍珠导览点 */}
+                    <div className="flex items-center gap-1">
+                      {SAMPLE_BOOKS.map((b, i) => (
+                        <button
+                          key={b.id}
+                          type="button"
+                          onClick={() => {
+                            setSampleCarouselIndex(i);
+                            applySampleBook(SAMPLE_BOOKS[i]);
+                          }}
+                          className={`transition-all duration-300 rounded-full cursor-pointer ${
+                            sampleCarouselIndex === i
+                              ? "h-2 w-4 bg-[#ff6b2c]"
+                              : "h-1.5 w-1.5 bg-[#f0e6d4] hover:bg-orange-300"
+                          }`}
+                          title={b.title}
+                          aria-label={`翻到第 ${i + 1} 本：${b.title}`}
+                        />
+                      ))}
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const nextIdx = (sampleCarouselIndex + 1) % SAMPLE_BOOKS.length;
+                        setSampleCarouselIndex(nextIdx);
+                        applySampleBook(SAMPLE_BOOKS[nextIdx]);
+                      }}
+                      className="group flex items-center gap-1.5 text-xs font-semibold text-neutral-600 hover:text-[#c2410c] transition cursor-pointer"
+                      title="翻看下一本官方精选"
+                    >
+                      <span className="hidden sm:inline text-[10px] text-neutral-400 font-normal">
+                        ({SAMPLE_BOOKS[(sampleCarouselIndex + 1) % SAMPLE_BOOKS.length].title.split("(")[0].trim().slice(0, 8)})
+                      </span>
+                      <span>下一本</span>
+                      <span className="flex h-5 w-5 items-center justify-center rounded-full bg-white border border-[#f0e6d4] shadow-2xs group-hover:border-[#ff6b2c]/60 group-hover:bg-[#fff4ee] text-[10px]">›</span>
+                    </button>
+                  </div>
+                ) : null}
+
+                {/* 载入定制桥梁 */}
+                {isSampleMode ? (
+                  <div className="flex items-center justify-between rounded-xl border border-dashed border-orange-200/90 bg-[#fffbf7] px-3.5 py-2 text-xs">
+                    <span className="text-neutral-600 text-[11px]">
+                      喜欢这首歌？可以载入左侧，定制成您家宝宝专属的主角形象～
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => adoptSampleForCustomization(SAMPLE_BOOKS[sampleCarouselIndex])}
+                      className="font-bold text-[#c2410c] hover:underline whitespace-nowrap text-xs flex items-center gap-0.5 cursor-pointer"
+                    >
+                      <span>✍️ 载入定制</span>
+                      <span>➔</span>
+                    </button>
+                  </div>
+                ) : null}
                 <div className="flex items-center justify-between gap-1.5 pt-2">
                   {/* 左侧：重画（纯净柔白微边） */}
                   <div className="flex-shrink-0">
@@ -1347,6 +1869,93 @@ export default function HomePage() {
           </span>
         </button>
       ) : null}
+      {/* 每日额度满额 / 解锁无限次 · 面包多一客一码解锁弹窗 */}
+      {showQuotaModal ? (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 animate-in fade-in duration-200">
+          <button
+            type="button"
+            className="absolute inset-0 bg-black/45 backdrop-blur-xs"
+            aria-label="关闭弹窗"
+            onClick={() => setShowQuotaModal(false)}
+          />
+          <div className="relative z-10 w-full max-w-sm rounded-3xl border border-[#f0e6d4] bg-white p-6 shadow-2xl text-center">
+            <button
+              type="button"
+              className="absolute right-3.5 top-3.5 flex h-7 w-7 items-center justify-center rounded-full bg-neutral-100 text-neutral-400 hover:bg-neutral-200 hover:text-neutral-700 cursor-pointer"
+              onClick={() => setShowQuotaModal(false)}
+            >
+              ✕
+            </button>
+
+            <span className="text-3xl" aria-hidden>🌟</span>
+            <h3 className="mt-1 text-lg font-bold text-neutral-800">解锁无限次绘本创作</h3>
+            <p className="mt-1 text-xs text-neutral-500 leading-relaxed">
+              为保障服务器稳定，每个设备每天赠送 3 次免费绘本生成～
+            </p>
+
+            {/* 路径 1：面包多自动秒发专属码 */}
+            <div className="mt-4 rounded-2xl border border-orange-200/80 bg-orange-50/70 p-3.5 text-left">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-neutral-800 flex items-center gap-1">
+                  <span>⚡</span> 路径一：赞助请杯奶茶 · 解锁无限次
+                </span>
+                <span className="rounded-full bg-[#ff6b2c] px-2 py-0.5 text-[10px] font-bold text-white">
+                  推荐
+                </span>
+              </div>
+              <p className="mt-1 text-[11px] text-neutral-600 leading-relaxed">
+                扫码赞助 6.6 元，系统将自动秒发您的<strong>【一客一码专属激活卡密】</strong>：
+              </p>
+              
+              <a
+                href="https://mbd.pub" 
+                target="_blank"
+                rel="noreferrer"
+                className="mt-2.5 flex items-center justify-center gap-1.5 rounded-xl bg-[#ff6b2c] py-2 text-xs font-bold text-white shadow-xs hover:bg-[#ef5a1a] transition font-semibold"
+              >
+                <span>📱</span>
+                <span>微信 / 支付宝赞助 6.6 元获取卡密</span>
+              </a>
+
+              {/* 卡密输入与立即核销 */}
+              <div className="mt-2.5 flex gap-1.5">
+                <input
+                  type="text"
+                  value={vipCodeInput}
+                  onChange={(e) => setVipCodeInput(e.target.value)}
+                  placeholder="粘贴获得的卡密（如：GH-VIP-8888）"
+                  className="flex-1 rounded-xl border border-[#f0e6d4] bg-white px-2.5 py-1.5 text-xs outline-none ring-[#ff6b2c]/40 focus:ring-1 text-neutral-700 placeholder:text-neutral-400 font-mono"
+                />
+                <button
+                  type="button"
+                  disabled={isRedeeming || !vipCodeInput.trim()}
+                  onClick={() => void onRedeemVipCode()}
+                  className="rounded-xl bg-neutral-800 px-3 py-1.5 text-xs font-semibold text-white hover:bg-neutral-900 disabled:opacity-50 whitespace-nowrap transition cursor-pointer"
+                >
+                  {isRedeeming ? "校验中…" : "立即激活"}
+                </button>
+              </div>
+
+              {redeemMsg ? (
+                <p className={redeemMsg.includes("恭喜") ? "mt-1.5 text-[11px] font-medium text-emerald-700" : "mt-1.5 text-[11px] font-medium text-rose-600"}>
+                  {redeemMsg}
+                </p>
+              ) : null}
+            </div>
+
+            {/* 路径 2：完全免费畅玩样板 */}
+            <div className="mt-3 rounded-2xl border border-neutral-200/80 bg-neutral-50/80 p-3 text-left">
+              <span className="text-xs font-bold text-neutral-700 flex items-center gap-1">
+                <span>🎁</span> 路径二：完全免费 · 畅玩精选样板
+              </span>
+              <p className="mt-1 text-[11px] text-neutral-500 leading-relaxed">
+                页面右上方的 12 套世界经典绘本依然<strong>完全免费、无限制导出</strong>！随时可下载 A4 高清挂画、黑白涂色卡与伴唱码～
+              </p>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
       {showTip ? (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 animate-in fade-in duration-200">
           {/* 半透明毛玻璃遮罩 */}
@@ -1405,4 +2014,25 @@ export default function HomePage() {
       ) : null}
     </main>
   );
-}
+{/* 今日免费额度指示 */}
+          <div className="flex items-center justify-between text-[11px] text-neutral-400 px-1 mb-1 mt-4">
+            <span>
+              {quota?.isVip ? (
+                <span className="text-[#c2410c] font-semibold">✨ VIP 会员 · 无限次随心创作</span>
+              ) : (
+                <span>
+                  今日免费额度：<strong className="text-neutral-700">{quota?.remainingToday ?? 3}</strong> / 3 次（0点重置）
+                </span>
+              )}
+            </span>
+            {!quota?.isVip ? (
+              <button
+                type="button"
+                onClick={() => setShowQuotaModal(true)}
+                className="text-[#c2410c] hover:underline font-medium cursor-pointer"
+              >
+                解锁无限次 ▾
+              </button>
+            ) : null}
+          </div>
+          }
