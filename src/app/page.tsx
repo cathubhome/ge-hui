@@ -883,25 +883,7 @@ export default function HomePage() {
                 <span className="leading-relaxed font-medium">{uploadTip}</span>
               </div>
             ) : null}
-            {freeSites.length > 0 ? (
-              <p className="mt-2 text-xs leading-relaxed text-neutral-500">
-                也可以先用浏览器里的免费听写工具整理歌词，再粘贴到下面：
-                {freeSites.map((s, i) => (
-                  <span key={s.url}>
-                    {i > 0 ? " · " : " "}
-                    <a
-                      href={s.url}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="text-[#ff6b2c] underline-offset-2 hover:underline"
-                      title={s.tip}
-                    >
-                      {s.name}
-                    </a>
-                  </span>
-                ))}
-              </p>
-            ) : null}
+            
           </div>
 
           <label className="mt-5 block text-sm font-semibold text-neutral-800">歌词</label>
@@ -924,7 +906,7 @@ export default function HomePage() {
               <span className="text-xs font-bold text-neutral-800 flex items-center gap-1.5">
                 <span>🎨</span> 画面定制（可选）
               </span>
-              <span className="text-[11px] text-neutral-400">点击直接生效</span>
+              <span className="text-[11px] text-neutral-400 font-medium">给画师的小贴士 ✨</span>
             </div>
 
             {/* 出镜角色 */}
@@ -943,7 +925,7 @@ export default function HomePage() {
                     onClick={() => setRoleScope(item.id as "default" | "solo" | "all")}
                     className={`rounded-lg px-2.5 py-1 text-xs font-semibold transition ${
                       roleScope === item.id
-                        ? "bg-[#ff6b2c] text-white shadow-sm"
+                        ? "border border-orange-300/90 bg-orange-50/90 text-orange-900 font-bold shadow-2xs"
                         : "border border-[#f0e6d4] bg-white text-neutral-600 hover:border-[#ff6b2c]/40 hover:bg-[#fff4ee]/50"
                     }`}
                   >
@@ -969,7 +951,7 @@ export default function HomePage() {
                     onClick={() => setArtStyle(item.id as "default" | "crayon" | "clay")}
                     className={`rounded-lg px-2.5 py-1 text-xs font-semibold transition ${
                       artStyle === item.id
-                        ? "bg-[#ff6b2c] text-white shadow-sm"
+                        ? "border border-orange-300/90 bg-orange-50/90 text-orange-900 font-bold shadow-2xs"
                         : "border border-[#f0e6d4] bg-white text-neutral-600 hover:border-[#ff6b2c]/40 hover:bg-[#fff4ee]/50"
                     }`}
                   >
@@ -987,7 +969,7 @@ export default function HomePage() {
                 disabled={jobBusy}
                 value={customPrompt}
                 onChange={(e) => setCustomPrompt(e.target.value)}
-                placeholder="补充愿望（选填，如：大家都要站着、背景在草地上）"
+                placeholder="想让画面里发生什么？如：在温暖的阳光草地上、大家一起吃西瓜（限40字）"
                 className="w-full rounded-xl border border-[#f0e6d4] bg-white px-3 py-1.5 text-xs outline-none ring-[#ff6b2c]/40 focus:ring-1 text-neutral-700 placeholder:text-neutral-400"
               />
             </div>
@@ -1121,7 +1103,7 @@ export default function HomePage() {
             <div className="mb-3 flex items-center justify-between gap-2">
               <h2 className="font-display text-lg text-neutral-800">绘本小舞台</h2>
               {imageDataUrl ? (
-                <span className="rounded-full bg-[#1db8a6]/15 px-2.5 py-1 text-[11px] font-semibold text-[#0f766e]">
+                <span className="rounded-full border border-[#f0e6d4] bg-white/80 px-2.5 py-0.5 text-[11px] font-medium text-neutral-500">
                   适合打印 · 一页启蒙绘本
                 </span>
               ) : null}
@@ -1188,34 +1170,34 @@ export default function HomePage() {
                   alt="生成的歌绘本页"
                   className="w-full rounded-2xl border border-[#f0e6d4] bg-white shadow-sm"
                 />
-                <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 pt-2">
-                  {/* 左侧：再画一张（保留歌词构思，独立放置，防折行） */}
+                <div className="flex items-center justify-between gap-1.5 pt-2">
+                  {/* 左侧：重画（纯净柔白微边） */}
                   <div className="flex-shrink-0">
                     <button
                       type="button"
                       disabled={jobBusy || isPrinting || isColoring}
                       onClick={onNewGenerate}
-                      className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 rounded-xl border border-[#f0e6d4] bg-white px-3.5 h-9 text-xs font-semibold text-neutral-700 transition hover:border-[#ff6b2c]/50 hover:bg-[#fff4ee] hover:text-[#c2410c] shadow-xs disabled:opacity-50 whitespace-nowrap min-w-[96px]"
-                      title="保留当前歌词，换个构图再画一张"
+                      className="inline-flex items-center justify-center gap-1 rounded-xl border border-[#e5ded4] bg-white px-2.5 h-8.5 text-xs font-semibold text-neutral-700 transition hover:border-[#ff6b2c]/60 hover:bg-[#fff7f2] hover:text-[#c2410c] shadow-2xs disabled:opacity-50 whitespace-nowrap"
+                      title="保留当前歌词，换个构图重画一张"
                     >
                       <span aria-hidden>🔄</span>
-                      <span>再画一张</span>
+                      <span>重画</span>
                     </button>
                   </div>
 
-                  {/* 右侧：四大交付项（高度全对齐 h-9，存为PDF主导高亮，其余统一柔白浅边） */}
-                  <div className="flex flex-wrap sm:flex-nowrap items-center gap-2">
-                    {/* 1. 存为 PDF（核心首选交付） */}
+                  {/* 右侧：五大交付与互动项（100%平权柔白设计，绝不抢画作焦点） */}
+                  <div className="flex items-center gap-1.5 flex-shrink-0">
+                    {/* 1. 存为 PDF（回归工具箱平权设计） */}
                     <button
                       type="button"
                       disabled={isPrinting || isColoring}
                       onClick={() => void onDownloadPdf()}
-                      className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 rounded-xl bg-[#ff6b2c] border border-transparent px-4 h-9 text-xs font-semibold text-white transition hover:bg-[#ef5a1a] shadow-xs disabled:opacity-50 whitespace-nowrap"
+                      className="inline-flex items-center justify-center gap-1 rounded-xl border border-[#e5ded4] bg-white px-2.5 h-8.5 text-xs font-semibold text-neutral-700 transition hover:border-[#ff6b2c]/60 hover:bg-[#fff7f2] hover:text-[#c2410c] shadow-2xs disabled:opacity-50 whitespace-nowrap"
                       title="直接静默下载标准的 A4 PDF 文件，专为打印贴墙设计"
                     >
                       {isPrinting ? (
                         <>
-                          <span className="inline-block h-3.5 w-3.5 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                          <span className="inline-block h-3.5 w-3.5 animate-spin rounded-full border-2 border-[#ff6b2c] border-t-transparent" />
                           <span>生成中…</span>
                         </>
                       ) : (
@@ -1226,39 +1208,39 @@ export default function HomePage() {
                       )}
                     </button>
 
-                    {/* 2. 打印（实体出纸） */}
+                    {/* 2. 打印 */}
                     <button
                       type="button"
                       disabled={isPrinting || isColoring}
                       onClick={() => void onPrintA4()}
-                      className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 rounded-xl border border-[#f0e6d4] bg-white px-3.5 h-9 text-xs font-semibold text-neutral-700 transition hover:border-[#ff6b2c]/50 hover:bg-[#fff4ee] hover:text-[#c2410c] shadow-xs disabled:opacity-50 whitespace-nowrap"
+                      className="inline-flex items-center justify-center gap-1 rounded-xl border border-[#e5ded4] bg-white px-2.5 h-8.5 text-xs font-semibold text-neutral-700 transition hover:border-[#ff6b2c]/60 hover:bg-[#fff7f2] hover:text-[#c2410c] shadow-2xs disabled:opacity-50 whitespace-nowrap"
                       title="调起系统打印机即刻出纸"
                     >
                       <span aria-hidden>🖨️</span>
                       <span>打印</span>
                     </button>
 
-                    {/* 3. 存为图片（手机发群与朋友圈） */}
+                    {/* 3. 存图 */}
                     <button
                       type="button"
                       disabled={isPrinting || isColoring}
                       onClick={onDownload}
-                      className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 rounded-xl border border-[#f0e6d4] bg-white px-3.5 h-9 text-xs font-semibold text-neutral-700 transition hover:border-[#ff6b2c]/50 hover:bg-[#fff4ee] hover:text-[#c2410c] shadow-xs disabled:opacity-50 whitespace-nowrap"
+                      className="inline-flex items-center justify-center gap-1 rounded-xl border border-[#e5ded4] bg-white px-2.5 h-8.5 text-xs font-semibold text-neutral-700 transition hover:border-[#ff6b2c]/60 hover:bg-[#fff7f2] hover:text-[#c2410c] shadow-2xs disabled:opacity-50 whitespace-nowrap"
                       title="下载高清绘本图片 (PNG)"
                     >
                       <span aria-hidden>🖼️</span>
-                      <span>存为图片</span>
+                      <span>存图</span>
                     </button>
 
-                    {/* 4. 涂色卡（衍生亲子互动玩法） */}
+                    {/* 4. 涂色卡 */}
                     <button
                       type="button"
                       disabled={isPrinting || isColoring}
                       onClick={() => void onDownloadColoring()}
-                      className={`flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 rounded-xl border px-3.5 h-9 text-xs font-semibold shadow-xs disabled:opacity-50 whitespace-nowrap transition ${
+                      className={`inline-flex items-center justify-center gap-1 rounded-xl border px-2.5 h-8.5 text-xs font-semibold shadow-2xs disabled:opacity-50 whitespace-nowrap transition ${
                         coloringSuccess
                           ? "border-emerald-300 bg-emerald-50 text-emerald-700 font-bold"
-                          : "border-[#f0e6d4] bg-white text-neutral-700 hover:border-[#ff6b2c]/50 hover:bg-[#fff4ee] hover:text-[#c2410c]"
+                          : "border-[#e5ded4] bg-white text-neutral-700 hover:border-[#ff6b2c]/60 hover:bg-[#fff7f2] hover:text-[#c2410c]"
                       }`}
                       title="一键提取黑白线稿并合成 A4 涂色卡，支持蜡笔涂鸦与描红"
                     >
@@ -1270,7 +1252,7 @@ export default function HomePage() {
                       ) : coloringSuccess ? (
                         <>
                           <span aria-hidden>✓</span>
-                          <span>涂色卡已导出</span>
+                          <span>已导出</span>
                         </>
                       ) : (
                         <>
@@ -1278,6 +1260,17 @@ export default function HomePage() {
                           <span>涂色卡</span>
                         </>
                       )}
+                    </button>
+
+                    {/* 5. 打赏 */}
+                    <button
+                      type="button"
+                      onClick={() => setShowTip(true)}
+                      className="inline-flex items-center justify-center gap-1 rounded-xl border border-[#e5ded4] bg-white px-2.5 h-8.5 text-xs font-semibold text-neutral-700 transition hover:border-[#ff6b2c]/60 hover:bg-[#fff7f2] hover:text-[#c2410c] shadow-2xs whitespace-nowrap"
+                      title="喜欢歌绘可以打赏请作者喝杯奶茶哦～"
+                    >
+                      <span aria-hidden>🧋</span>
+                      <span>打赏</span>
                     </button>
                   </div>
                 </div>
@@ -1334,73 +1327,82 @@ export default function HomePage() {
         <p>适合睡前、英语角，或打印贴在墙上一起唱。</p>
       </footer>
 
-      {/* 摆法1：右下角悬浮奶茶钮（不挡主流程） */}
+      {/* 右下角智能抽屉呼吸按钮：平时微呼吸圆钮，悬停丝滑展开文字，离开收缩 */}
       {!showTip ? (
         <button
           type="button"
           onClick={() => setShowTip(true)}
-          className="fixed bottom-5 right-5 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-[#ff6b2c] text-2xl shadow-lg shadow-orange-300/40 transition hover:scale-105 hover:bg-[#ef5a1a] focus:outline-none focus:ring-2 focus:ring-[#ff6b2c]/50 sm:bottom-8 sm:right-8"
+          className="group fixed bottom-5 right-5 z-40 flex h-11 items-center rounded-full border border-orange-200/90 bg-white/95 px-3 shadow-lg shadow-orange-950/10 backdrop-blur-xs transition-all duration-300 ease-out hover:shadow-orange-300/40 hover:border-[#ff6b2c]/60 hover:bg-[#fff8f3] sm:bottom-7 sm:right-7"
           aria-label="请杯奶茶"
-          title="请杯奶茶"
+          title="喜欢歌绘可以请作者喝杯奶茶哦～"
         >
-          <span aria-hidden>🧋</span>
+          {/* 图标与轻柔微呼吸动效 */}
+          <span className="text-xl transition-transform duration-300 group-hover:scale-110 group-hover:rotate-6" aria-hidden>
+            🧋
+          </span>
+
+          {/* 抽屉文字：默认宽度为0溢出隐藏，悬停时平滑展开 */}
+          <span className="max-w-0 overflow-hidden whitespace-nowrap text-xs font-bold text-neutral-700 opacity-0 transition-all duration-300 ease-out group-hover:max-w-xs group-hover:pl-2 group-hover:opacity-100 group-hover:text-[#c2410c]">
+            请作者喝杯奶茶
+          </span>
         </button>
       ) : null}
       {showTip ? (
-        <div className="fixed inset-0 z-[100] flex items-end justify-center p-4 sm:items-center">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 animate-in fade-in duration-200">
+          {/* 半透明毛玻璃遮罩 */}
           <button
             type="button"
-            className="absolute inset-0 bg-black/45"
-            aria-label="关闭打赏"
+            className="absolute inset-0 bg-black/45 backdrop-blur-xs transition-opacity"
+            aria-label="关闭打赏弹窗"
             onClick={() => setShowTip(false)}
           />
+
+          {/* 亲子质感弹窗卡片 */}
           <div
-            className="relative z-10 max-h-[85vh] w-full max-w-xs overflow-y-auto rounded-3xl border border-[#f0e6d4] bg-white p-5 shadow-2xl text-center"
+            className="relative z-10 w-full max-w-xs overflow-hidden rounded-3xl border border-[#f0e6d4] bg-white p-6 shadow-2xl text-center transition-all scale-100"
             role="dialog"
             aria-modal="true"
-            aria-label="请杯奶茶"
+            aria-label="请作者喝杯奶茶"
           >
+            {/* 右上角圆形极简关闭叉叉 */}
             <button
               type="button"
-              className="btn-quiet absolute right-3 top-3 z-20 rounded-full px-3 py-1 text-xs"
+              className="absolute right-3.5 top-3.5 z-20 flex h-7 w-7 items-center justify-center rounded-full bg-neutral-100 text-neutral-400 transition hover:bg-neutral-200 hover:text-neutral-700 focus:outline-none"
               onClick={() => setShowTip(false)}
+              aria-label="关闭"
+              title="关闭 (Esc)"
             >
-              关闭
+              <span className="text-sm font-bold">✕</span>
             </button>
-            <p className="font-display text-lg font-bold text-neutral-800">请作者喝杯奶茶 🧋</p>
-            <p className="mt-1 text-xs text-neutral-500">
-              喜欢歌绘就好啦 · 微信扫码自愿打赏
+
+            {/* 顶部标题与亲切微提示 */}
+            <div className="pt-1">
+              <span className="inline-block text-3xl mb-1.5 animate-bounce" aria-hidden>🧋</span>
+              <h3 className="font-display text-lg font-bold text-neutral-800">
+                请作者喝杯奶茶
+              </h3>
+              <p className="mt-1 text-xs text-neutral-500">
+                喜欢歌绘就好啦 · 微信扫码自愿打赏
+              </p>
+            </div>
+
+            {/* 中间二维码卡片（精致双层内衬边框） */}
+            <div className="mt-4 rounded-2xl border border-orange-100/80 bg-gradient-to-b from-[#fff8f3] to-white p-3 shadow-inner">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src="/samples/ge-hui-tip-qr-clean.png"
+                alt="微信打赏收款码"
+                className="mx-auto h-48 w-48 rounded-xl object-contain shadow-xs"
+              />
+            </div>
+
+            {/* 底部温馨小贴士（干净清爽，不再残留无意义文案） */}
+            <p className="mt-3.5 text-[11px] text-neutral-400">
+              长按或扫一扫 · 感谢支持歌绘持续进化～
             </p>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src="/samples/ge-hui-tip-qr-clean.png"
-              alt="请杯奶茶打赏码"
-              className="mx-auto mt-3.5 h-52 w-52 rounded-2xl border border-neutral-200/60 bg-white p-2.5 shadow-sm"
-            />
-            <p className="mt-2.5 text-xs text-neutral-400">
-              长按或扫一扫 · Esc 键也可关闭
-            </p>
-            {imageDataUrl ? (
-              <button
-                type="button"
-                className="btn-ghost mt-2 w-full text-xs"
-                onClick={() => {
-                  setShowTip(false);
-                  window.setTimeout(() => {
-                    document.getElementById("ge-hui-tip")?.scrollIntoView({
-                      behavior: "smooth",
-                      block: "center",
-                    });
-                  }, 50);
-                }}
-              >
-                也可看结果区下方的码
-              </button>
-            ) : null}
           </div>
         </div>
       ) : null}
     </main>
   );
 }
-
