@@ -85,7 +85,15 @@ jobs:
             echo "==> 3. 生产打包 Next.js..."
             NEXT_TELEMETRY_DISABLED=1 npm run build
 
-            echo "==> 4. 挂载持久化任务数据目录..."
+                        echo "==> 3.5 确保服务器具备 ffmpeg 工具..."
+            if ! command -v ffmpeg >/dev/null 2>&1; then
+              echo "未找到 ffmpeg，正在自动安装..."
+              apt-get update -y && apt-get install -y ffmpeg
+            fi
+
+            echo "==> 4. 挂载持久化任务数据目录与音频目录..."
+            mkdir -p /var/lib/ge-hui/jobs/audio
+            mkdir -p /var/lib/ge-hui/jobs/uploads
             ln -s /var/lib/ge-hui/jobs "${RELEASE}/data"
 
             echo "==> 5. 记录版本发布元数据..."
@@ -120,4 +128,5 @@ jobs:
 
             echo "==> 部署完成！当前线上版本: $(readlink -f /opt/ge-hui/current)"
           EOF
+
 

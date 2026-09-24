@@ -4,14 +4,20 @@ import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { existsSync } from "node:fs";
 
-const audioDir = () => path.join(process.cwd(), "data", "audio");
+// Prefer system persistent directory if specified by DATA_DIR, otherwise fallback to process.cwd()/data/audio
+const audioDir = () => {
+  if (process.env.DATA_DIR) {
+    return path.join(process.env.DATA_DIR, "audio");
+  }
+  return path.join(process.cwd(), "data", "audio");
+};
 
 async function ensureAudioDir() {
   await fs.mkdir(audioDir(), { recursive: true });
 }
 
 function findFfmpeg(): string | null {
-  // 1. Check system PATH
+  // 1. Check system PATH (standard Linux /usr/bin/ffmpeg or Windows PATH)
   if (process.env.PATH) {
     const paths = process.env.PATH.split(path.delimiter);
     for (const p of paths) {
@@ -20,7 +26,14 @@ function findFfmpeg(): string | null {
     }
   }
 
-  // 2. Windows Python imageio_ffmpeg fallback if available
+  // 2. Common Linux locations
+  if (process.platform === "linux") {
+    for (const p of ["/usr/bin/ffmpeg", "/usr/local/bin/ffmpeg"]) {
+      if (existsSync(p)) return p;
+    }
+  }
+
+  // 3. Windows Python imageio_ffmpeg fallback if available
   if (process.platform === "win32") {
     const pythonFfmpeg = path.join(
       process.env.USERPROFILE || "C:\\Users\\wangyq158",
@@ -75,10 +88,30 @@ export async function getAudioMeta(id: string): Promise<AudioMeta | null> {
   }
 }
 
+export function resolveMimeType(ext: string): string {
+  const cleanExt = ext.replace(/^\./, "").toLowerCase();
+  switch (cleanExt) {
+    case "m4a":
+      return "audio/mp4";
+    case "aac":
+      return "audio/aac";
+    case "mp3":
+      return "audio/mpeg";
+    case "wav":
+      return "audio/wav";
+    case "ogg":
+      return "audio/ogg";
+    case "flac":
+      return "audio/flac";
+    default:
+      return "audio/mpeg";
+  }
+}
+
 /**
  * Compress an audio buffer into ~32kbps mono AAC/M4A (~200KB - 250KB per song)
  * and save it to data/audio/<id>.m4a.
- * If ffmpeg is not available, falls back to saving raw buffer.
+ * If ffmpeg is not available, falls back to saving raw buffer with exact original extension.
  */
 export async function compressAndSaveAudio(
   inputBuf: Buffer,
@@ -93,22 +126,23 @@ export async function compressAndSaveAudio(
     void saveAudioMeta(audioId, initialMeta);
   }
 
+  const cleanExt = (format || "mp3").toLowerCase().replace(/[^a-z0-9]/g, "") || "mp3";
+
   if (!ffmpeg) {
-    // Fallback: save raw buffer directly without compression
-    const ext = format === "m4a" || format === "aac" ? "m4a" : "mp3";
-    const rawPath = path.join(audioDir(), `${audioId}.${ext}`);
+    // Fallback: save raw buffer directly with its EXACT extension to prevent iOS decode failure
+    const rawPath = path.join(audioDir(), `${audioId}.${cleanExt}`);
     await fs.writeFile(rawPath, inputBuf);
-    return { audioId, fileName: `${audioId}.${ext}`, sizeBytes: inputBuf.length };
+    return { audioId, fileName: `${audioId}.${cleanExt}`, sizeBytes: inputBuf.length };
   }
 
-  const tempIn = path.join(audioDir(), `temp_${audioId}.${format}`);
+  const tempIn = path.join(audioDir(), `temp_${audioId}.${cleanExt}`);
   const targetName = `${audioId}.m4a`;
   const targetPath = path.join(audioDir(), targetName);
 
   try {
     await fs.writeFile(tempIn, inputBuf);
     await new Promise<void>((resolve, reject) => {
-      // 32kbps mono AAC: crystal clear for children songs and speech, tiny file size
+      // 32kbps mono AAC in standard M4A container: crystal clear for children songs, fully compatible with iOS Safari
       const proc = spawn(ffmpeg, [
         "-y",
         "-i",
@@ -131,10 +165,10 @@ export async function compressAndSaveAudio(
     const stat = await fs.stat(targetPath);
     return { audioId, fileName: targetName, sizeBytes: stat.size };
   } catch {
-    // If transcoding fails, fallback to saving raw buffer
-    const rawPath = path.join(audioDir(), `${audioId}.${format}`);
+    // If transcoding fails, fallback to saving raw buffer with exact original extension
+    const rawPath = path.join(audioDir(), `${audioId}.${cleanExt}`);
     await fs.writeFile(rawPath, inputBuf);
-    return { audioId, fileName: `${audioId}.${format}`, sizeBytes: inputBuf.length };
+    return { audioId, fileName: `${audioId}.${cleanExt}`, sizeBytes: inputBuf.length };
   } finally {
     await fs.unlink(tempIn).catch(() => undefined);
   }
@@ -142,20 +176,11 @@ export async function compressAndSaveAudio(
 
 export async function getAudioFile(id: string): Promise<{ filePath: string; contentType: string; size: number } | null> {
   const dir = audioDir();
-  for (const ext of ["m4a", "mp3", "aac", "ogg", "wav", "flac"]) {
+  for (const ext of ["m4a", "aac", "mp3", "ogg", "wav", "flac"]) {
     const p = path.join(dir, `${id}.${ext}`);
     try {
       const stat = await fs.stat(p);
-      const contentType =
-        ext === "m4a" || ext === "aac"
-          ? "audio/mp4"
-          : ext === "mp3"
-          ? "audio/mpeg"
-          : ext === "ogg"
-          ? "audio/ogg"
-          : ext === "wav"
-          ? "audio/wav"
-          : "audio/flac";
+      const contentType = resolveMimeType(ext);
       return { filePath: p, contentType, size: stat.size };
     } catch {
       // try next

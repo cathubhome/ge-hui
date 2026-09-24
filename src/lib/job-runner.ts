@@ -240,3 +240,4 @@ export async function resumeJobIfNeeded(jobId: string): Promise<void> {
     startGenerateJob(jobId);
   }
 }
+
