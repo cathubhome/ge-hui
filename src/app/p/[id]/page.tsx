@@ -156,7 +156,7 @@ export default function MobilePlayerPage({ params }: Props) {
               setCurrentTime(val);
               if (audioRef.current) audioRef.current.currentTime = val;
             }}
-            className="h-1.5 w-full cursor-pointer appearance-none rounded-lg bg-orange-100 accent-[#ff6b2c]"
+            className="h-2.5 w-full cursor-pointer appearance-none rounded-full bg-orange-100 accent-[#ff6b2c] transition"
           />
           <div className="flex justify-between text-[11px] font-medium text-neutral-400">
             <span>{formatTime(currentTime)}</span>
@@ -184,7 +184,7 @@ export default function MobilePlayerPage({ params }: Props) {
 
         {/* Follow-along Lyrics Card */}
         {lyrics ? (
-          <div className="mt-6 w-full max-w-sm rounded-2xl border border-[#f0e6d4] bg-white p-4 shadow-xs">
+          <div className="mt-5 w-full max-w-sm rounded-2xl border border-[#f0e6d4] bg-white/95 p-4 shadow-xs backdrop-blur-xs">
             <p className="text-center text-xs font-bold text-neutral-400">
               —— 伴唱歌词 ——
             </p>

@@ -1189,7 +1189,7 @@ export default function HomePage() {
                   className="w-full rounded-2xl border border-[#f0e6d4] bg-white shadow-sm"
                 />
                 <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 pt-2">
-                  {/* 左侧：再画一张（锁定高度与单行排版） */}
+                  {/* 左侧：再画一张（保留歌词构思，独立放置，防折行） */}
                   <div className="flex-shrink-0">
                     <button
                       type="button"
@@ -1203,38 +1203,19 @@ export default function HomePage() {
                     </button>
                   </div>
 
-                  {/* 右侧：四大交付项（高度全对齐 h-9，边框与字色秩序统一） */}
+                  {/* 右侧：四大交付项（高度全对齐 h-9，存为PDF主导高亮，其余统一柔白浅边） */}
                   <div className="flex flex-wrap sm:flex-nowrap items-center gap-2">
-                    <button
-                      type="button"
-                      disabled={isPrinting || isColoring}
-                      onClick={() => void onDownloadColoring()}
-                      className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 rounded-xl border border-orange-200/80 bg-orange-50/80 px-3.5 h-9 text-xs font-semibold text-[#c2410c] transition hover:bg-[#ff6b2c] hover:text-white shadow-xs disabled:opacity-50 whitespace-nowrap"
-                      title="一键提取黑白线稿并合成 A4 涂色卡，支持蜡笔涂鸦与描红"
-                    >
-                      {isColoring ? (
-                        <>
-                          <span className="inline-block h-3.5 w-3.5 animate-spin rounded-full border-2 border-[#c2410c] border-t-transparent" />
-                          <span>画线稿中…</span>
-                        </>
-                      ) : (
-                        <>
-                          <span aria-hidden>✏️</span>
-                          <span>涂色卡</span>
-                        </>
-                      )}
-                    </button>
-
+                    {/* 1. 存为 PDF（核心首选交付） */}
                     <button
                       type="button"
                       disabled={isPrinting || isColoring}
                       onClick={() => void onDownloadPdf()}
-                      className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 rounded-xl border border-orange-200/80 bg-orange-50/80 px-3.5 h-9 text-xs font-semibold text-[#c2410c] transition hover:bg-[#ff6b2c] hover:text-white shadow-xs disabled:opacity-50 whitespace-nowrap"
+                      className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 rounded-xl bg-[#ff6b2c] border border-transparent px-4 h-9 text-xs font-semibold text-white transition hover:bg-[#ef5a1a] shadow-xs disabled:opacity-50 whitespace-nowrap"
                       title="直接静默下载标准的 A4 PDF 文件，专为打印贴墙设计"
                     >
                       {isPrinting ? (
                         <>
-                          <span className="inline-block h-3.5 w-3.5 animate-spin rounded-full border-2 border-[#c2410c] border-t-transparent" />
+                          <span className="inline-block h-3.5 w-3.5 animate-spin rounded-full border-2 border-white border-t-transparent" />
                           <span>生成中…</span>
                         </>
                       ) : (
@@ -1245,60 +1226,97 @@ export default function HomePage() {
                       )}
                     </button>
 
+                    {/* 2. 打印（实体出纸） */}
+                    <button
+                      type="button"
+                      disabled={isPrinting || isColoring}
+                      onClick={() => void onPrintA4()}
+                      className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 rounded-xl border border-[#f0e6d4] bg-white px-3.5 h-9 text-xs font-semibold text-neutral-700 transition hover:border-[#ff6b2c]/50 hover:bg-[#fff4ee] hover:text-[#c2410c] shadow-xs disabled:opacity-50 whitespace-nowrap"
+                      title="调起系统打印机即刻出纸"
+                    >
+                      <span aria-hidden>🖨️</span>
+                      <span>打印</span>
+                    </button>
+
+                    {/* 3. 存为图片（手机发群与朋友圈） */}
                     <button
                       type="button"
                       disabled={isPrinting || isColoring}
                       onClick={onDownload}
-                      className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 rounded-xl border border-[#f0e6d4] bg-white px-3.5 h-9 text-xs font-semibold text-neutral-700 transition hover:border-[#ff6b2c]/40 hover:bg-[#fff4ee]/60 hover:text-[#c2410c] shadow-xs disabled:opacity-50 whitespace-nowrap"
+                      className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 rounded-xl border border-[#f0e6d4] bg-white px-3.5 h-9 text-xs font-semibold text-neutral-700 transition hover:border-[#ff6b2c]/50 hover:bg-[#fff4ee] hover:text-[#c2410c] shadow-xs disabled:opacity-50 whitespace-nowrap"
                       title="下载高清绘本图片 (PNG)"
                     >
                       <span aria-hidden>🖼️</span>
                       <span>存为图片</span>
                     </button>
 
+                    {/* 4. 涂色卡（衍生亲子互动玩法） */}
                     <button
                       type="button"
                       disabled={isPrinting || isColoring}
-                      onClick={() => void onPrintA4()}
-                      className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 rounded-xl border border-[#f0e6d4] bg-white px-3.5 h-9 text-xs font-semibold text-neutral-700 transition hover:border-[#ff6b2c]/40 hover:bg-[#fff4ee]/60 hover:text-[#c2410c] shadow-xs disabled:opacity-50 whitespace-nowrap"
-                      title="调起系统打印机即刻出纸"
+                      onClick={() => void onDownloadColoring()}
+                      className={`flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 rounded-xl border px-3.5 h-9 text-xs font-semibold shadow-xs disabled:opacity-50 whitespace-nowrap transition ${
+                        coloringSuccess
+                          ? "border-emerald-300 bg-emerald-50 text-emerald-700 font-bold"
+                          : "border-[#f0e6d4] bg-white text-neutral-700 hover:border-[#ff6b2c]/50 hover:bg-[#fff4ee] hover:text-[#c2410c]"
+                      }`}
+                      title="一键提取黑白线稿并合成 A4 涂色卡，支持蜡笔涂鸦与描红"
                     >
-                      <span aria-hidden>🖨️</span>
-                      <span>打印</span>
+                      {isColoring ? (
+                        <>
+                          <span className="inline-block h-3.5 w-3.5 animate-spin rounded-full border-2 border-[#ff6b2c] border-t-transparent" />
+                          <span>{coloringStage}</span>
+                        </>
+                      ) : coloringSuccess ? (
+                        <>
+                          <span aria-hidden>✓</span>
+                          <span>涂色卡已导出</span>
+                        </>
+                      ) : (
+                        <>
+                          <span aria-hidden>✏️</span>
+                          <span>涂色卡</span>
+                        </>
+                      )}
                     </button>
                   </div>
                 </div>
 
+                {/* 分镜构思与台词折叠栏（友好图文排版，告别生硬 JSON） */}
                 {plan ? (
-                  <details className="rounded-xl border border-[#f0e6d4] bg-[#fffdf8] px-3 py-2 text-xs text-neutral-600">
-                    <summary className="cursor-pointer select-none font-medium text-neutral-700">
-                      给老师看的画面说明
+                  <details className="rounded-2xl border border-[#f0e6d4] bg-[#fffdf8] px-4 py-3 text-xs text-neutral-600 transition">
+                    <summary className="cursor-pointer select-none font-semibold text-neutral-700 flex items-center justify-between">
+                      <span className="flex items-center gap-1.5">
+                        <span aria-hidden>🎭</span>
+                        <span>画面分镜构思与角色台词</span>
+                      </span>
+                      <span className="text-[11px] text-neutral-400 font-normal">点击展开/收起</span>
                     </summary>
-                    <pre className="mt-2 overflow-x-auto whitespace-pre-wrap font-sans leading-relaxed">
-                      {JSON.stringify(plan, null, 2)}
-                    </pre>
+                    <div className="mt-3 space-y-2.5 pt-2 border-t border-[#f0e6d4]/60">
+                      {plan.characterDescription ? (
+                        <p className="text-neutral-700 leading-relaxed">
+                          <strong className="text-neutral-800">出镜角色：</strong>
+                          {plan.characterDescription}
+                        </p>
+                      ) : null}
+                      {Array.isArray(plan.panels) && plan.panels.length > 0 ? (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+                          {plan.panels.map((p, idx) => (
+                            <div key={idx} className="rounded-xl border border-orange-100 bg-white p-2.5 shadow-2xs">
+                              <div className="flex items-center justify-between text-[11px] font-bold text-[#c2410c]">
+                                <span>分镜 {idx + 1}</span>
+                                <span className="font-normal text-neutral-500">{p.labelEn}</span>
+                              </div>
+                              <p className="mt-1 font-medium text-neutral-800">{p.labelZh}</p>
+                              {p.action ? <p className="mt-0.5 text-[11px] text-neutral-500">动作：{p.action}</p> : null}
+                            </div>
+                          ))}
+                        </div>
+                      ) : null}
+                    </div>
                   </details>
                 ) : null}
-                <div
-                  id="ge-hui-tip"
-                  className="mt-5 rounded-2xl border border-[#f0e6d4] bg-white p-4 text-center shadow-sm"
-                >
-                  <p className="font-display text-base font-bold text-neutral-800">
-                    请作者喝杯奶茶 🧋
-                  </p>
-                  <p className="mt-1 text-xs text-neutral-500">
-                    喜欢歌绘就好啦 · 微信扫码自愿打赏
-                  </p>
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src="/samples/ge-hui-tip-qr-clean.png"
-                    alt="请杯奶茶打赏码"
-                    className="mx-auto mt-3 h-52 w-52 rounded-2xl border border-neutral-200/60 bg-white p-2.5 shadow-sm"
-                  />
-                  <p className="mt-2 text-[11px] text-neutral-400">
-                    长按或扫一扫，支持歌绘持续优化～
-                  </p>
-                </div>
+                
               </div>
             ) : null}
 
