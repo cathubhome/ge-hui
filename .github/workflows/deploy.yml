@@ -1,0 +1,122 @@
+name: Deploy GeHui Production
+
+on:
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - 'README.md'
+      - 'docs/**'
+      - '.gitignore'
+  workflow_dispatch:
+
+concurrency:
+  group: ge-hui-deploy-prod
+  cancel-in-progress: true
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install Dependencies
+        run: |
+          npm ci
+
+      - name: TypeScript Quality Check
+        run: |
+          npx tsc --noEmit --incremental false
+
+      - name: Package Source Code
+        run: |
+          STAMP=$(date +'%Y%m%d-%H%M%S')
+          echo "RELEASE_STAMP=$STAMP" >> $GITHUB_ENV
+          tar -czf /tmp/ge-hui-$STAMP.tar.gz \
+            --exclude='.git' \
+            --exclude='node_modules' \
+            --exclude='.next' \
+            --exclude='.env*' \
+            --exclude='data' \
+            --exclude='*.log' \
+            --exclude='test-audio-samples' \
+            .
+
+      - name: Setup SSH Key
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.SERVER_SSH_KEY }}
+
+      - name: Upload Package to Server
+        run: |
+          SSH_OPTS="-o StrictHostKeyChecking=no -o KexAlgorithms=ecdh-sha2-nistp256 -o Ciphers=aes128-ctr -o MACs=hmac-sha2-256 -o HostKeyAlgorithms=ssh-ed25519 -o IPQoS=none"
+          scp $SSH_OPTS -P ${{ secrets.SERVER_PORT || '22' }} /tmp/ge-hui-${{ env.RELEASE_STAMP }}.tar.gz ${{ secrets.SERVER_USER || 'root' }}@${{ secrets.SERVER_HOST }}:/tmp/
+
+      - name: Remote Build and Atomic Switch
+        run: |
+          SSH_OPTS="-o StrictHostKeyChecking=no -o KexAlgorithms=ecdh-sha2-nistp256 -o Ciphers=aes128-ctr -o MACs=hmac-sha2-256 -o HostKeyAlgorithms=ssh-ed25519 -o IPQoS=none"
+          ssh $SSH_OPTS -p ${{ secrets.SERVER_PORT || '22' }} ${{ secrets.SERVER_USER || 'root' }}@${{ secrets.SERVER_HOST }} "bash -s" << 'EOF'
+            set -euo pipefail
+            STAMP="${{ env.RELEASE_STAMP }}"
+            ARCHIVE="/tmp/ge-hui-${STAMP}.tar.gz"
+            RELEASE="/opt/ge-hui/releases/${STAMP}"
+            PREVIOUS="$(readlink -f /opt/ge-hui/current || true)"
+
+            echo "==> 1. 解压源码到独立发布目录..."
+            mkdir -p "${RELEASE}"
+            tar -xzf "${ARCHIVE}" -C "${RELEASE}"
+
+            echo "==> 2. 复用依赖并安装生产依赖..."
+            if [ -n "${PREVIOUS}" ] && [ -d "${PREVIOUS}/node_modules" ]; then
+              cp -a "${PREVIOUS}/node_modules" "${RELEASE}/node_modules"
+            fi
+            cd "${RELEASE}"
+            npm install --omit=dev --no-audit --no-fund
+
+            echo "==> 3. 生产打包 Next.js..."
+            NEXT_TELEMETRY_DISABLED=1 npm run build
+
+            echo "==> 4. 挂载持久化任务数据目录..."
+            ln -s /var/lib/ge-hui/jobs "${RELEASE}/data"
+
+            echo "==> 5. 记录版本发布元数据..."
+            printf 'commit=%s\nbuiltAt=%s\nactor=%s\n' \
+              "${{ github.sha }}" \
+              "$(date -Is)" \
+              "${{ github.actor }}" > "${RELEASE}/.deployment-metadata.txt"
+
+            echo "==> 6. 原子切换当前版本软链接..."
+            ln -s "${RELEASE}" /opt/ge-hui/current.next
+            mv -Tf /opt/ge-hui/current.next /opt/ge-hui/current
+
+            echo "==> 7. 重启 ge-hui systemd 服务..."
+            systemctl restart ge-hui
+            sleep 4
+            systemctl is-active --quiet ge-hui
+
+            echo "==> 8. 本地端口健康检查..."
+            curl --fail --silent --show-error -H 'Host: gehui.3099520.xyz' http://127.0.0.1:18082/ > /dev/null
+            curl --fail --silent --show-error -H 'Host: gehui.3099520.xyz' http://127.0.0.1:18082/api/models > /dev/null
+
+            echo "==> 9. 清理历史旧版本 (仅保留当前运行这 1 个版本)..."
+            cd /opt/ge-hui/releases
+            CURRENT_TARGET="$(basename "$(readlink -f /opt/ge-hui/current)")"
+            for dir in 20*; do
+              if [ -d "$dir" ] && [ "$dir" != "$CURRENT_TARGET" ]; then
+                echo "删除历史旧版本目录: $dir"
+                rm -rf -- "$dir"
+              fi
+            done
+            rm -f "${ARCHIVE}"
+
+            echo "==> 部署完成！当前线上版本: $(readlink -f /opt/ge-hui/current)"
+          EOF
