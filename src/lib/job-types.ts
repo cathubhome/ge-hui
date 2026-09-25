@@ -1,3 +1,4 @@
+import type { QuotaReservation } from "@/lib/quota-types";
 import type { ScenePlan, UserPreference } from "@/lib/types";
 
 export type JobStatus = "queued" | "running" | "done" | "error";
@@ -43,6 +44,8 @@ export type JobRecord = {
 };
 
 export type JobCreateInput = {
+  id?: string;
+  quotaReservation?: QuotaReservation;
   lyrics?: string;
   songTitle?: string;
   chatModel?: string;

@@ -4,22 +4,28 @@ import { randomUUID } from "node:crypto";
 import type { JobCreateInput, JobRecord, JobStep, JobStatus } from "@/lib/job-types";
 import type { UserPreference } from "@/lib/types";
 import { cleanupOldAudios } from "@/lib/audio-store";
+import { dataRoot, writeJsonAtomic } from "@/lib/json-store";
+import type { QuotaReservation } from "@/lib/quota-types";
 
-const jobsDir = () => path.join(process.cwd(), "data", "jobs");
-const uploadsDir = () => path.join(process.cwd(), "data", "uploads");
+const jobsDir = () => path.join(dataRoot(), "jobs");
+const uploadsDir = () => path.join(dataRoot(), "uploads");
 
 /** In-memory mirror so same Node process doesn't re-read disk every poll. */
 const memory = new Map<string, JobRecord>();
 
 /** Prevent double-run if POST is retried. */
 const running = new Set<string>();
+let cleanupStarted = false;
 
 async function ensureDir() {
   await fs.mkdir(jobsDir(), { recursive: true });
   await fs.mkdir(uploadsDir(), { recursive: true });
-  void cleanupOrphanedPdfs();
-  void cleanupOrphanedUploads();
-  void cleanupOldAudios(90);
+  if (!cleanupStarted) {
+    cleanupStarted = true;
+    void cleanupOrphanedPdfs();
+    void cleanupOrphanedUploads();
+    void cleanupOldAudios(90);
+  }
 }
 
 function uploadPdfPath(id: string) {
@@ -131,7 +137,7 @@ export function markJobRunning(id: string, on: boolean) {
 
 export async function createJob(input: JobCreateInput): Promise<JobRecord> {
   await ensureDir();
-  const id = randomUUID();
+  const id = input.id || randomUUID();
   const now = new Date().toISOString();
   const needsVision = Boolean(input.needsVision && input.pdfBytes?.length);
   const record: JobRecord = {
@@ -173,6 +179,7 @@ export async function createJob(input: JobCreateInput): Promise<JobRecord> {
     needsVision,
     userPreference: input.userPreference,
     audioId: input.audioId,
+    quotaReservation: input.quotaReservation,
   });
 
   memory.set(id, record);
@@ -189,6 +196,7 @@ type PrivateInput = {
   needsVision: boolean;
   userPreference?: UserPreference;
   audioId?: string;
+  quotaReservation?: QuotaReservation;
 };
 
 function privatePath(id: string) {
@@ -196,7 +204,7 @@ function privatePath(id: string) {
 }
 
 async function writePrivateInput(id: string, data: PrivateInput) {
-  await fs.writeFile(privatePath(id), JSON.stringify(data), "utf8");
+  await writeJsonAtomic(privatePath(id), data);
 }
 
 export async function readPrivateInput(id: string): Promise<PrivateInput | null> {
@@ -286,7 +294,7 @@ export async function readJobRefs(id: string): Promise<string[]> {
 async function persist(record: JobRecord) {
   await ensureDir();
   const slim = { ...record };
-  await fs.writeFile(jobJsonPath(record.id), JSON.stringify(slim, null, 2), "utf8");
+  await writeJsonAtomic(jobJsonPath(record.id), slim);
   memory.set(record.id, record);
 }
 

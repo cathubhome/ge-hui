@@ -1,15 +1,22 @@
+import { randomUUID } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import {
   createJob,
+  deleteUploadPdf,
+  deleteUploadRefs,
   publicJobSnapshot,
   readUploadPdf,
-  deleteUploadPdf,
   readUploadRefs,
-  deleteUploadRefs,
 } from "@/lib/job-store";
+import { attachDeviceCookie, resolveDeviceIdentity } from "@/lib/device-identity";
 import { startGenerateJob } from "@/lib/job-runner";
+import {
+  getQuotaStatus,
+  QuotaError,
+  refundGeneration,
+  reserveGeneration,
+} from "@/lib/rate-limiter";
 import type { UserPreference } from "@/lib/types";
-import { checkQuota, consumeQuota, extractClientIp } from "@/lib/rate-limiter";
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
@@ -34,11 +41,19 @@ function stripDataUrl(b64: string): Buffer {
   return Buffer.from(raw, "base64");
 }
 
+function isValidUploadId(uploadId: string): boolean {
+  return /^[0-9a-f-]{36}$/i.test(uploadId.trim());
+}
+
 /**
  * Create a durable generate job and kick off async processing.
  * Returns quickly with job id for polling / F5 resume.
  */
 export async function POST(req: NextRequest) {
+  const identity = resolveDeviceIdentity(req);
+  let cleanupUploadAction: (() => Promise<void>) | null = null;
+  let reservationId: string | null = null;
+
   try {
     const contentType = req.headers.get("content-type") || "";
     let lyrics = "";
@@ -62,13 +77,19 @@ export async function POST(req: NextRequest) {
       needsVision =
         String(form.get("needsVision") || "") === "1" ||
         String(form.get("needsVision") || "").toLowerCase() === "true";
-      const uploadId = String(form.get("uploadId") || "");
+      const uploadId = String(form.get("uploadId") || "").trim();
       if (uploadId) {
+        if (!isValidUploadId(uploadId)) {
+          return attachDeviceCookie(
+            NextResponse.json({ error: "无效的上传编号" }, { status: 400 }),
+            identity,
+          );
+        }
         const buf = await readUploadPdf(uploadId);
         if (buf) {
           pdfBytes = buf;
           needsVision = true;
-          void deleteUploadPdf(uploadId);
+          cleanupUploadAction = async () => deleteUploadPdf(uploadId);
         }
       }
       const file = form.get("pdf") || form.get("file");
@@ -86,17 +107,24 @@ export async function POST(req: NextRequest) {
       needsVision = Boolean(body.needsVision);
       userPreference = body.userPreference;
       audioId = String(body.audioId || "");
-      if (body.uploadId) {
-        const buf = await readUploadPdf(body.uploadId);
+      const uploadId = String(body.uploadId || "").trim();
+      if (uploadId) {
+        if (!isValidUploadId(uploadId)) {
+          return attachDeviceCookie(
+            NextResponse.json({ error: "无效的上传编号" }, { status: 400 }),
+            identity,
+          );
+        }
+        const buf = await readUploadPdf(uploadId);
         if (buf) {
           pdfBytes = buf;
           needsVision = true;
-          void deleteUploadPdf(body.uploadId);
+          cleanupUploadAction = async () => deleteUploadPdf(uploadId);
         } else {
-          const refs = await readUploadRefs(body.uploadId);
+          const refs = await readUploadRefs(uploadId);
           if (refs.length > 0) {
             refBuffers = refs;
-            void deleteUploadRefs(body.uploadId);
+            cleanupUploadAction = async () => deleteUploadRefs(uploadId);
           }
         }
       }
@@ -108,57 +136,82 @@ export async function POST(req: NextRequest) {
 
     const hasLyrics = lyrics.trim().length > 8;
     if (!hasLyrics && !pdfBytes?.length && !refBuffers?.length) {
-      return NextResponse.json(
-        { error: "请先填写歌词，或上传需要看图读词的 PDF～" },
-        { status: 400 },
+      return attachDeviceCookie(
+        NextResponse.json(
+          { error: "请先填写歌词，或上传需要看图读词的 PDF～" },
+          { status: 400 },
+        ),
+        identity,
       );
     }
 
-    // Cap PDF size (~12MB) to protect 2C2G box
     if (pdfBytes && pdfBytes.length > 12 * 1024 * 1024) {
-      return NextResponse.json(
-        { error: "这份 PDF 有点大，请换一份小一点的，或直接粘贴歌词～" },
-        { status: 413 },
+      return attachDeviceCookie(
+        NextResponse.json(
+          { error: "这份 PDF 有点大，请换一份小一点的，或直接粘贴歌词～" },
+          { status: 413 },
+        ),
+        identity,
       );
     }
 
-        // Rate Limit & Daily Quota Guard (Anti-Abuse & Monetization Protection)
-    const ip = extractClientIp(req.headers);
-    const authHeader = req.headers.get("authorization") || "";
-    const vipToken = authHeader.replace(/^Bearer\s+/i, "").trim() || undefined;
-    const quota = await checkQuota(ip, vipToken);
+    const jobId = randomUUID();
+    reservationId = jobId;
+    const quotaReservation = await reserveGeneration(identity.deviceHash, jobId);
 
-    if (!quota.canGenerate) {
-      return NextResponse.json(
+    try {
+      const job = await createJob({
+        id: jobId,
+        quotaReservation,
+        lyrics,
+        songTitle,
+        chatModel,
+        imageModel,
+        characterDescription,
+        needsVision: needsVision && Boolean(pdfBytes?.length),
+        pdfBytes,
+        refBuffers,
+        userPreference,
+        audioId: audioId || undefined,
+      });
+
+      if (cleanupUploadAction) {
+        void cleanupUploadAction().catch(() => undefined);
+      }
+      startGenerateJob(job.id);
+
+      const quota = await getQuotaStatus(identity.deviceHash);
+      const res = NextResponse.json(
+        { job: publicJobSnapshot(job), quota },
+        { status: 201 },
+      );
+      res.headers.set("Cache-Control", "no-store");
+      return attachDeviceCookie(res, identity);
+    } catch (createError) {
+      await refundGeneration(jobId).catch(() => undefined);
+      throw createError;
+    }
+  } catch (e) {
+    if (e instanceof QuotaError) {
+      const res = NextResponse.json(
         {
-          error: quota.reason || "今日免费额度已用完",
-          quotaExceeded: true,
-          remainingToday: quota.remainingToday,
+          error: e.message,
+          quotaExceeded: !e.quota.canGenerate && e.quota.cooldownSeconds === 0,
+          cooldownActive: e.quota.cooldownSeconds > 0,
+          quota: e.quota,
         },
         { status: 429 },
       );
+      res.headers.set("Cache-Control", "no-store");
+      return attachDeviceCookie(res, identity);
     }
 
-    const job = await createJob({
-      lyrics,
-      songTitle,
-      chatModel,
-      imageModel,
-      characterDescription,
-      needsVision: needsVision && Boolean(pdfBytes?.length),
-      pdfBytes,
-      refBuffers,
-      userPreference,
-      audioId: audioId || undefined,
-    });
-
-    // Fire-and-forget — do not await the full pipeline.
-    void consumeQuota(ip);
-    startGenerateJob(job.id);
-
-    return NextResponse.json({ job: publicJobSnapshot(job) }, { status: 201 });
-  } catch (e) {
+    if (reservationId) {
+      await refundGeneration(reservationId).catch(() => undefined);
+    }
     const message = e instanceof Error ? e.message : "创建任务失败";
-    return NextResponse.json({ error: message }, { status: 500 });
+    const res = NextResponse.json({ error: message }, { status: 500 });
+    res.headers.set("Cache-Control", "no-store");
+    return attachDeviceCookie(res, identity);
   }
 }

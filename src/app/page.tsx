@@ -1,26 +1,8 @@
 "use client";
 
-function getOrCreateDeviceId(): string {
-  if (typeof window === "undefined") return "server-env";
-  const KEY = "ge-hui-device-fingerprint";
-  let devId = localStorage.getItem(KEY);
-  if (!devId) {
-    const screenInfo = `${window.screen.width}x${window.screen.height}x${window.screen.colorDepth}`;
-    const navInfo = `${navigator.language}_${navigator.hardwareConcurrency || 4}`;
-    const rand = Math.random().toString(36).substring(2, 10).toUpperCase();
-    let hash = 0;
-    const str = screenInfo + navInfo;
-    for (let i = 0; i < str.length; i++) {
-      hash = (hash << 5) - hash + str.charCodeAt(i);
-      hash |= 0;
-    }
-    devId = `DEV-${rand}-${Math.abs(hash).toString(16).toUpperCase()}`;
-    localStorage.setItem(KEY, devId);
-  }
-  return devId;
-}
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ScenePlan, UserPreference } from "@/lib/types";
+import type { QuotaStatus } from "@/lib/quota-types";
 import { triggerNativePrintA4, downloadA4Pdf } from "@/lib/print-canvas";
 import { downloadColoringPdf, canvasEdgeDetect } from "@/lib/coloring-card";
 import { SAMPLE_BOOKS, type SampleBook } from "@/lib/sample-books";
@@ -180,11 +162,13 @@ export default function HomePage() {
   const [sampleCarouselIndex, setSampleCarouselIndex] = useState(0);
   const [isSampleMode, setIsSampleMode] = useState<boolean>(false);
 
-  const [quota, setQuota] = useState<{ remainingToday: number; maxDaily: number; isVip: boolean; canGenerate: boolean } | null>(null);
+  const [quota, setQuota] = useState<QuotaStatus | null>(null);
   const [showQuotaModal, setShowQuotaModal] = useState(false);
   const [vipCodeInput, setVipCodeInput] = useState("");
   const [isRedeeming, setIsRedeeming] = useState(false);
   const [redeemMsg, setRedeemMsg] = useState("");
+  const [copyFeedback, setCopyFeedback] = useState("");
+  const magicLinkHandled = useRef(false);
 
   const currentPresets = useMemo(() => {
     const start = (inspirationBatch * 3) % SONG_PRESETS.length;
@@ -197,15 +181,9 @@ export default function HomePage() {
 
   const refreshQuota = useCallback(async () => {
     try {
-      const vipToken = typeof window !== "undefined" ? localStorage.getItem("ge-hui-vip-token") || "" : "";
-      const devId = typeof window !== "undefined" ? getOrCreateDeviceId() : "";
-      const headers: Record<string, string> = {};
-      if (vipToken) headers["Authorization"] = "Bearer " + vipToken;
-      if (devId) headers["X-Device-Id"] = devId;
-
-      const res = await fetch("/api/quota", { headers });
+      const res = await fetch("/api/quota");
       if (res.ok) {
-        const data = await res.json();
+        const data = (await res.json()) as { quota?: QuotaStatus };
         if (data.quota) setQuota(data.quota);
       }
     } catch {}
@@ -213,6 +191,50 @@ export default function HomePage() {
 
   useEffect(() => {
     void refreshQuota();
+  }, [refreshQuota]);
+
+  // Magic Link auto-redeem: check ?code= or ?token= on load
+  useEffect(() => {
+    if (typeof window === "undefined" || magicLinkHandled.current) return;
+    magicLinkHandled.current = true;
+
+    const params = new URLSearchParams(window.location.search);
+    const codeParam = (params.get("code") || params.get("token") || "").trim();
+    if (!codeParam || !/^GH1-[A-Z2-7]{4}/i.test(codeParam)) return;
+
+    void (async () => {
+      try {
+        const res = await fetch("/api/activate-code", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ code: codeParam }),
+        });
+        const data = (await res.json()) as {
+          message?: string;
+          error?: string;
+          quota?: QuotaStatus;
+        };
+
+        // Clean query params from address bar silently
+        params.delete("code");
+        params.delete("token");
+        const nextQuery = params.toString();
+        const nextUrl = window.location.pathname + (nextQuery ? `?${nextQuery}` : "") + window.location.hash;
+        window.history.replaceState({}, "", nextUrl);
+
+        if (res.ok) {
+          if (data.quota) setQuota(data.quota);
+          else void refreshQuota();
+          setRedeemMsg(data.message || "激活成功！已为您同步创作额度～");
+          setShowQuotaModal(true);
+        } else {
+          setRedeemMsg(data.error || "链接中的兑换码无效或已达设备上限");
+          setShowQuotaModal(true);
+        }
+      } catch {
+        // network error
+      }
+    })();
   }, [refreshQuota]);
 
   function openSampleGallery() {
@@ -342,23 +364,45 @@ export default function HomePage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ code: vipCodeInput.trim() }),
       });
-      const data = await res.json();
+      const data = (await res.json()) as {
+        message?: string;
+        error?: string;
+        quota?: QuotaStatus;
+      };
       if (!res.ok) throw new Error(data.error || "激活码校验失败");
-      if (data.vipToken) {
-        localStorage.setItem("ge-hui-vip-token", data.vipToken);
-      }
-      setRedeemMsg(data.message || "恭喜！已解锁无限次绘本创作特权～");
-      void refreshQuota();
+      if (data.quota) setQuota(data.quota);
+      else void refreshQuota();
+      setRedeemMsg(data.message || "激活成功！已增加绘本创作额度～");
+      // Keep code in input or sync link so user can copy/share if needed
       setTimeout(() => {
         setShowQuotaModal(false);
-        setVipCodeInput("");
         setRedeemMsg("");
-      }, 1500);
+      }, 2000);
     } catch (e) {
       setRedeemMsg(e instanceof Error ? e.message : "激活失败，请检查输入");
     } finally {
       setIsRedeeming(false);
     }
+  }
+
+  function copyMagicSyncLink() {
+    if (typeof window === "undefined") return;
+    const cleanCode = vipCodeInput.trim();
+    if (!cleanCode) {
+      setCopyFeedback("请先在输入框粘贴卡密，再生成链接哦～");
+      setTimeout(() => setCopyFeedback(""), 2500);
+      return;
+    }
+    const url = `${window.location.origin}/?code=${encodeURIComponent(cleanCode)}`;
+    void navigator.clipboard.writeText(url).then(
+      () => {
+        setCopyFeedback("✓ 链接已复制！发给电脑或微信打开即自动同步");
+        setTimeout(() => setCopyFeedback(""), 3000);
+      },
+      () => {
+        setCopyFeedback(url);
+      }
+    );
   }
   const [coloringSuccess, setColoringSuccess] = useState(false);
   const [coloringStage, setColoringStage] = useState("提取线稿中…");
@@ -459,6 +503,7 @@ export default function HomePage() {
     } else if (job.status === "error") {
       setStep("idle");
       setError(job.error || "出了点小状况，再试一次吧");
+      void refreshQuota();
     }
   }, []);
 
@@ -575,15 +620,18 @@ export default function HomePage() {
     };
   }, [step]);
 
-  // Tip modal: Esc to close; never leave an invisible blocker.
+  // Modal Escape handling: tip and quota modals
   useEffect(() => {
-    if (!showTip) return;
+    if (!showTip && !showQuotaModal) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setShowTip(false);
+      if (e.key === "Escape") {
+        setShowTip(false);
+        setShowQuotaModal(false);
+      }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [showTip]);
+  }, [showTip, showQuotaModal]);
 
   async function onPickFiles(fileList: FileList | File[] | null) {
     if (!fileList || fileList.length === 0) return;
@@ -808,21 +856,40 @@ export default function HomePage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       });
-      const data = (await res.json()) as { job?: JobRecord; error?: string };
+      const data = (await res.json()) as {
+        job?: JobRecord;
+        error?: string;
+        quotaExceeded?: boolean;
+        cooldownActive?: boolean;
+        quota?: QuotaStatus;
+      };
+      if (data.quota) {
+        setQuota(data.quota);
+      }
       if (!res.ok || !data.job) {
+        if (data.quotaExceeded) {
+          setShowQuotaModal(true);
+        }
         throw new Error(data.error || "没能开始生成");
       }
 
-      // 立即乐观扣减今日免费额度（体感 0 延迟，3/3 -> 2/3）
-      setQuota((prev) =>
-        prev && !prev.isVip
-          ? {
-              ...prev,
-              remainingToday: Math.max(0, prev.remainingToday - 1),
-              canGenerate: Math.max(0, prev.remainingToday - 1) > 0,
-            }
-          : prev
-      );
+      setQuota((prev) => {
+        if (!prev) return prev;
+        if (prev.freeRemainingToday > 0) {
+          const nextFree = Math.max(0, prev.freeRemainingToday - 1);
+          return {
+            ...prev,
+            freeRemainingToday: nextFree,
+            canGenerate: nextFree > 0 || prev.paidRemaining > 0,
+          };
+        }
+        const nextPaid = Math.max(0, prev.paidRemaining - 1);
+        return {
+          ...prev,
+          paidRemaining: nextPaid,
+          canGenerate: nextPaid > 0,
+        };
+      });
 
       try {
         localStorage.setItem(JOB_LS_KEY, data.job.id);
@@ -1364,24 +1431,23 @@ export default function HomePage() {
 
           {/* 每日免费额度与防白嫖指示 */}
           <div className="flex items-center justify-between text-[11px] text-neutral-400 px-1 mb-1 mt-4">
-            <span>
-              {quota?.isVip ? (
-                <span className="text-[#c2410c] font-semibold">✨ VIP 会员 · 无限次随心创作</span>
-              ) : (
-                <span>
-                  今日免费额度：<strong className="text-neutral-700">{quota?.remainingToday ?? 3}</strong> / 3 次 (0点重置)
+            <span className="flex items-center gap-1.5 flex-wrap">
+              <span>
+                今日免费：<strong className="text-neutral-700">{quota?.freeRemainingToday ?? 3}</strong> / {quota?.freeDailyMax ?? 3} 次 (0点重置)
+              </span>
+              {(quota?.paidRemaining ?? 0) > 0 ? (
+                <span className="rounded-full bg-emerald-50 px-2 py-0.5 font-semibold text-emerald-700 border border-emerald-200/80">
+                  创作包剩余 {quota?.paidRemaining} 次
                 </span>
-              )}
+              ) : null}
             </span>
-            {!quota?.isVip ? (
-              <button
-                type="button"
-                onClick={() => setShowQuotaModal(true)}
-                className="text-[#c2410c] hover:underline font-medium cursor-pointer"
-              >
-                解锁无限次 ▾
-              </button>
-            ) : null}
+            <button
+              type="button"
+              onClick={() => setShowQuotaModal(true)}
+              className="text-[#c2410c] hover:underline font-medium cursor-pointer"
+            >
+              获取更多创作次数 ▾
+            </button>
           </div>
 
           <button
@@ -1896,7 +1962,7 @@ export default function HomePage() {
           </span>
         </button>
       ) : null}
-      {/* 每日额度满额 / 解锁无限次 · 面包多一客一码解锁弹窗 */}
+      {/* 每日额度满额 / 获取更多创作次数 · 人工发卡弹窗 */}
       {showQuotaModal ? (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 animate-in fade-in duration-200">
           <button
@@ -1905,75 +1971,114 @@ export default function HomePage() {
             aria-label="关闭弹窗"
             onClick={() => setShowQuotaModal(false)}
           />
-          <div className="relative z-10 w-full max-w-sm rounded-3xl border border-[#f0e6d4] bg-white p-6 shadow-2xl text-center">
+          <div
+            className="relative z-10 w-full max-w-sm rounded-3xl border border-[#f0e6d4] bg-white p-5 sm:p-6 shadow-2xl text-center max-h-[90vh] overflow-y-auto"
+            role="dialog"
+            aria-modal="true"
+            aria-label="获取更多绘本创作次数"
+          >
             <button
               type="button"
               className="absolute right-3.5 top-3.5 flex h-7 w-7 items-center justify-center rounded-full bg-neutral-100 text-neutral-400 hover:bg-neutral-200 hover:text-neutral-700 cursor-pointer"
+              aria-label="关闭弹窗"
               onClick={() => setShowQuotaModal(false)}
             >
               ✕
             </button>
 
             <span className="text-3xl" aria-hidden>🌟</span>
-            <h3 className="mt-1 text-lg font-bold text-neutral-800">解锁无限次绘本创作</h3>
+            <h3 className="mt-1 text-lg font-bold text-neutral-800">获取更多绘本创作次数</h3>
             <p className="mt-1 text-xs text-neutral-500 leading-relaxed">
-              为保障服务器稳定，每个设备每天赠送 3 次免费绘本生成～
+              为保障服务器稳定，每个浏览器设备每天赠送 3 次免费生成，次日 0 点重置～
             </p>
 
-            {/* 路径 1：面包多自动秒发专属码 */}
+            {/* 路径 1：人工微信发卡 */}
             <div className="mt-4 rounded-2xl border border-orange-200/80 bg-orange-50/70 p-3.5 text-left">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-bold text-neutral-800 flex items-center gap-1">
-                  <span>⚡</span> 路径一：赞助请杯奶茶 · 解锁无限次
+                  <span>⚡</span> 支持者创作包 · 6.6 元
                 </span>
                 <span className="rounded-full bg-[#ff6b2c] px-2 py-0.5 text-[10px] font-bold text-white">
-                  推荐
+                  20次 / 90天
                 </span>
               </div>
-              <p className="mt-1 text-[11px] text-neutral-600 leading-relaxed">
-                扫码赞助 6.6 元，系统将自动秒发您的<strong>【一客一码专属激活卡密】</strong>：
+              <p className="mt-1.5 text-[11px] text-neutral-600 leading-relaxed">
+                扫码添加作者微信（<strong>牵猫散步的鱼</strong>），付款后将为您<strong>人工发送专属一客一码卡密</strong>：
               </p>
-              
-              <a
-                href="https://mbd.pub" 
-                target="_blank"
-                rel="noreferrer"
-                className="mt-2.5 flex items-center justify-center gap-1.5 rounded-xl bg-[#ff6b2c] py-2 text-xs font-bold text-white shadow-xs hover:bg-[#ef5a1a] transition font-semibold"
-              >
-                <span>📱</span>
-                <span>微信 / 支付宝赞助 6.6 元获取卡密</span>
-              </a>
+
+              <div className="mt-3 rounded-2xl border border-orange-100/90 bg-white p-2.5 text-center shadow-xs">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src="/payments/wechat-contact.jpg"
+                  alt="作者微信二维码：牵猫散步的鱼"
+                  className="mx-auto h-52 w-52 rounded-xl object-contain"
+                />
+                <p className="mt-2 text-[11px] font-medium text-neutral-600">
+                  扫一扫添加微信 · 备注「歌绘创作包」
+                </p>
+                <p className="mt-0.5 text-[10px] text-neutral-400">
+                  人工核对后发送激活卡密，遇到使用问题也可随时联系作者
+                </p>
+              </div>
 
               {/* 卡密输入与立即核销 */}
-              <div className="mt-2.5 flex gap-1.5">
-                <input
-                  type="text"
-                  value={vipCodeInput}
-                  onChange={(e) => setVipCodeInput(e.target.value)}
-                  placeholder="粘贴获得的卡密（如：GH-VIP-8888）"
-                  className="flex-1 rounded-xl border border-[#f0e6d4] bg-white px-2.5 py-1.5 text-xs outline-none ring-[#ff6b2c]/40 focus:ring-1 text-neutral-700 placeholder:text-neutral-400 font-mono"
-                />
-                <button
-                  type="button"
-                  disabled={isRedeeming || !vipCodeInput.trim()}
-                  onClick={() => void onRedeemVipCode()}
-                  className="rounded-xl bg-neutral-800 px-3 py-1.5 text-xs font-semibold text-white hover:bg-neutral-900 disabled:opacity-50 whitespace-nowrap transition cursor-pointer"
-                >
-                  {isRedeeming ? "校验中…" : "立即激活"}
-                </button>
+              <div className="mt-3">
+                <label className="block text-[11px] font-semibold text-neutral-700 mb-1">
+                  已拿到卡密？在此输入激活：
+                </label>
+                <div className="flex gap-1.5">
+                  <input
+                    type="text"
+                    value={vipCodeInput}
+                    onChange={(e) => setVipCodeInput(e.target.value)}
+                    placeholder="粘贴获得的卡密（如：GH1-XXXX-XXXX...）"
+                    className="flex-1 rounded-xl border border-[#f0e6d4] bg-white px-2.5 py-1.5 text-xs outline-none ring-[#ff6b2c]/40 focus:ring-1 text-neutral-700 placeholder:text-neutral-400 font-mono"
+                  />
+                  <button
+                    type="button"
+                    disabled={isRedeeming || !vipCodeInput.trim()}
+                    onClick={() => void onRedeemVipCode()}
+                    className="rounded-xl bg-neutral-800 px-3 py-1.5 text-xs font-semibold text-white hover:bg-neutral-900 disabled:opacity-50 whitespace-nowrap transition cursor-pointer"
+                  >
+                    {isRedeeming ? "校验中…" : "立即激活"}
+                  </button>
+                </div>
+
+                {/* 方案 C：复制多设备一键同步链接 */}
+                {vipCodeInput.trim() ? (
+                  <div className="mt-2 flex items-center justify-between">
+                    <button
+                      type="button"
+                      onClick={copyMagicSyncLink}
+                      className="text-[11px] text-[#ff6b2c] hover:underline font-medium inline-flex items-center gap-1 cursor-pointer"
+                    >
+                      <span>🔗</span>
+                      <span>复制跨设备免密同步链接</span>
+                    </button>
+                    {copyFeedback ? (
+                      <span className="text-[10px] text-emerald-700 font-medium">
+                        {copyFeedback}
+                      </span>
+                    ) : null}
+                  </div>
+                ) : null}
               </div>
 
               {redeemMsg ? (
-                <p className={redeemMsg.includes("恭喜") ? "mt-1.5 text-[11px] font-medium text-emerald-700" : "mt-1.5 text-[11px] font-medium text-rose-600"}>
+                <p className={redeemMsg.includes("成功") ? "mt-1.5 text-[11px] font-medium text-emerald-700" : "mt-1.5 text-[11px] font-medium text-rose-600"}>
                   {redeemMsg}
                 </p>
               ) : null}
+
+              <p className="mt-2 text-[10px] text-neutral-400 leading-relaxed">
+                * 支持<strong>最多 3 台常用设备</strong>共享（手机微信/浏览器/电脑）；多设备共享 20 次付费池，各设备每天仍有 3 次独立免费额度～
+              </p>
             </div>
 
             {/* 路径 2：完全免费畅玩样板 */}
             <div className="mt-3 rounded-2xl border border-neutral-200/80 bg-neutral-50/80 p-3 text-left">
               <span className="text-xs font-bold text-neutral-700 flex items-center gap-1">
-                <span>🎁</span> 路径二：完全免费 · 畅玩精选样板
+                <span>🎁</span> 免费通道 · 畅玩精选样板
               </span>
               <p className="mt-1 text-[11px] text-neutral-500 leading-relaxed">
                 页面右上方的 12 套世界经典绘本依然<strong>完全免费、无限制导出</strong>！随时可下载 A4 高清挂画、黑白涂色卡与伴唱码～
@@ -2041,25 +2146,4 @@ export default function HomePage() {
       ) : null}
     </main>
   );
-{/* 今日免费额度指示 */}
-          <div className="flex items-center justify-between text-[11px] text-neutral-400 px-1 mb-1 mt-4">
-            <span>
-              {quota?.isVip ? (
-                <span className="text-[#c2410c] font-semibold">✨ VIP 会员 · 无限次随心创作</span>
-              ) : (
-                <span>
-                  今日免费额度：<strong className="text-neutral-700">{quota?.remainingToday ?? 3}</strong> / 3 次（0点重置）
-                </span>
-              )}
-            </span>
-            {!quota?.isVip ? (
-              <button
-                type="button"
-                onClick={() => setShowQuotaModal(true)}
-                className="text-[#c2410c] hover:underline font-medium cursor-pointer"
-              >
-                解锁无限次 ▾
-              </button>
-            ) : null}
-          </div>
-          }
+}

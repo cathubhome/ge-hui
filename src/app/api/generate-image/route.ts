@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { cpaFetch, getCpaApiKey, imageModel as defaultImageModel, chatModels } from "@/lib/cpa";
 import type { ScenePlan, UserPreference } from "@/lib/types";
 import { CUTE_ERRORS } from "@/lib/model-options";
+import { isInternalRequest } from "@/lib/internal-api";
 
 export const runtime = "nodejs";
 export const maxDuration = 180;
@@ -15,6 +16,10 @@ type GenBody = {
 };
 
 export async function POST(req: NextRequest) {
+  if (!isInternalRequest(req)) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
+
   try {
     const body = (await req.json()) as GenBody;
     const plan = body.plan as ScenePlan;

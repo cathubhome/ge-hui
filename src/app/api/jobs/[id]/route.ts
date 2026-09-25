@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getJob, publicJobSnapshot } from "@/lib/job-store";
 import { resumeJobIfNeeded } from "@/lib/job-runner";
+import { commitGeneration, refundGeneration } from "@/lib/rate-limiter";
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
@@ -19,8 +20,11 @@ export async function GET(_req: NextRequest, ctx: Ctx) {
       return NextResponse.json({ error: "找不到这个任务" }, { status: 404 });
     }
 
-    // If server restarted mid-job, kick runner again.
-    if (job.status === "queued" || job.status === "running") {
+    if (job.status === "done") {
+      void commitGeneration(id);
+    } else if (job.status === "error") {
+      void refundGeneration(id);
+    } else if (job.status === "queued" || job.status === "running") {
       void resumeJobIfNeeded(id);
     }
 

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { cpaFetch, getCpaApiKey, chatModels } from "@/lib/cpa";
 import { planSceneLocal } from "@/lib/plan-scene-local";
+import { isInternalRequest } from "@/lib/internal-api";
 import type { ScenePlan } from "@/lib/types";
 
 export const runtime = "nodejs";
@@ -45,6 +46,10 @@ function normalizePlan(
 }
 
 export async function POST(req: NextRequest) {
+  if (!isInternalRequest(req)) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
+
   let lyrics = "";
   let songTitle = "";
   let characterDescription = "";

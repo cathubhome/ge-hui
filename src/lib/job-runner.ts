@@ -12,6 +12,8 @@ import {
   writeJobRefs,
   writePrivateInputAfterVision,
 } from "@/lib/job-store";
+import { internalJsonHeaders } from "@/lib/internal-api";
+import { commitGeneration, refundGeneration } from "@/lib/rate-limiter";
 import { visionExtractPdf } from "@/lib/pdf-vision";
 import type { ScenePlan } from "@/lib/types";
 
@@ -19,7 +21,7 @@ async function callPlanScene(body: Record<string, unknown>) {
   const { POST } = await import("@/app/api/plan-scene/route");
   const req = new NextRequest("http://local/api/plan-scene", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: internalJsonHeaders(),
     body: JSON.stringify(body),
   });
   const res = await POST(req);
@@ -34,7 +36,7 @@ async function callGenerateImage(body: Record<string, unknown>) {
   const { POST } = await import("@/app/api/generate-image/route");
   const req = new NextRequest("http://local/api/generate-image", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: internalJsonHeaders(),
     body: JSON.stringify(body),
   });
   const res = await POST(req);
@@ -48,6 +50,19 @@ async function callGenerateImage(body: Record<string, unknown>) {
     throw new Error(data.error || "画画没成功");
   }
   return data;
+}
+
+async function finalizeJob(
+  jobId: string,
+  outcome: "done" | "error",
+  patch: Parameters<typeof updateJob>[1],
+): Promise<void> {
+  await updateJob(jobId, patch);
+  if (outcome === "done") {
+    await commitGeneration(jobId).catch(() => undefined);
+  } else {
+    await refundGeneration(jobId).catch(() => undefined);
+  }
 }
 
 /**
@@ -64,11 +79,18 @@ export function startGenerateJob(jobId: string): void {
 async function runGenerateJob(jobId: string): Promise<void> {
   const existing = await getJob(jobId);
   if (!existing) return;
-  if (existing.status === "done" || existing.status === "error") return;
+  if (existing.status === "done") {
+    await commitGeneration(jobId).catch(() => undefined);
+    return;
+  }
+  if (existing.status === "error") {
+    await refundGeneration(jobId).catch(() => undefined);
+    return;
+  }
 
   const priv = await readPrivateInput(jobId);
   if (!priv) {
-    await updateJob(jobId, {
+    await finalizeJob(jobId, "error", {
       status: "error",
       progressLabel: "找不到这次生成的材料了",
       error: "找不到这次生成的材料了，请再点一次生成～",
@@ -203,7 +225,7 @@ async function runGenerateJob(jobId: string): Promise<void> {
       userPreference: priv.userPreference,
     });
 
-    await updateJob(jobId, {
+    await finalizeJob(jobId, "done", {
       status: "done",
       step: "done",
       progressLabel: stepLabel("done", "done"),
@@ -224,7 +246,7 @@ async function runGenerateJob(jobId: string): Promise<void> {
     await deleteJobPdf(jobId).catch(() => undefined);
     const message =
       e instanceof Error ? e.message : "出了点小状况，再试一次吧";
-    await updateJob(jobId, {
+    await finalizeJob(jobId, "error", {
       status: "error",
       progressLabel: "出了点小状况",
       error: message,

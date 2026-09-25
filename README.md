@@ -83,9 +83,22 @@ CPA_TRANSCRIBE_MODEL=gemini-3.8-flash-high
 
 # AI 图像生成模型（推荐 gpt-image-2.5 或 gpt-image-2）
 CPA_IMAGE_MODEL=gpt-image-2.5
+
+# 创作包激活码签名密钥（生产必填，至少 32 字符随机字符串）
+ACTIVATION_CODE_SECRET=replace-with-at-least-32-chars-random-secret
 ```
 
-### 3. 安装依赖与启动
+### 3. 支持者创作包与人工发卡（一客一码）
+- **免费额度**：每个浏览器每天 3 次免费绘本生成，次日 0 点重置。
+- **支持者创作包**：6.6 元增加 20 次生成额度，自激活起 90 天有效。
+- **购买链路**：用户在网站弹窗扫码添加作者微信（牵猫散步的鱼），人工收款后由管理员执行发卡命令发送卡密。
+- **管理员发卡命令**：
+  ```bash
+  ACTIVATION_CODE_SECRET=your-secret npm run access:issue -- --count 1
+  ```
+  生成的卡密格式形如 `GH1-XXXX-XXXX-...`，用户在网站粘贴激活后自动绑定当前浏览器设备 Cookie，支持失败任务自动退款。
+
+### 4. 安装依赖与启动
 ```bash
 npm install
 npm run dev
