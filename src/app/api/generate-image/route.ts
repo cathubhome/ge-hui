@@ -48,15 +48,6 @@ export async function POST(req: NextRequest) {
         { status: 400 },
       );
     }
-    if (/gemini/i.test(selectedImageModel) && /image/i.test(selectedImageModel)) {
-      return NextResponse.json(
-        {
-          error:
-            "这个画师暂时不能用，请在小设置里换推荐的出图模型再试～",
-        },
-        { status: 400 },
-      );
-    }
 
     const generated = await generateWithCpa(
       plan,
@@ -202,6 +193,26 @@ async function generateWithCpa(
     ? buildMergePrompt(plan, characterDescription, pref)
     : buildPrompt(plan, characterDescription, pref);
 
+  // 1. 如果选择的是 Gemini 多模态原生出图模型（如 gemini-3.1-flash-image）
+  if (/gemini/i.test(model)) {
+    try {
+      const b64 = await generateWithGeminiChat(
+        prompt,
+        model,
+        referenceImageDataUrls,
+      );
+      if (b64) {
+        return {
+          b64,
+          usedReferences: referenceImageDataUrls.length,
+          drawMode: hasRefs ? "gemini-ref-spread" : "gemini-direct",
+        };
+      }
+    } catch {
+      // 若单次生图请求偶发超时，继续尝试备用通道
+    }
+  }
+
   if (hasRefs) {
     try {
       const b64 = await generateWithReferences(
@@ -247,6 +258,44 @@ async function generateWithCpa(
   });
   if (b64) return { b64, usedReferences: 0, drawMode: "text" };
   throw new Error("绘图服务忙不过来，请稍后再试～");
+}
+
+async function generateWithGeminiChat(
+  prompt: string,
+  model: string,
+  refs: string[],
+): Promise<string> {
+  const content: Array<Record<string, unknown>> = [
+    {
+      type: "text",
+      text: `${prompt}\n\nPlease generate and output a colorful, clean, high-resolution children's picture book spread illustration as an image directly. Do not describe it in text.`,
+    },
+  ];
+  for (const url of refs) {
+    content.push({ type: "image_url", image_url: { url } });
+  }
+
+  const res = await cpaFetch("/chat/completions", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      model,
+      temperature: 0.3,
+      messages: [{ role: "user", content }],
+    }),
+  });
+
+  if (!res.ok) {
+    const errText = await res.text().catch(() => "");
+    throw new Error(`Gemini 出图响应异常: ${errText.slice(0, 100)}`);
+  }
+
+  const data = (await res.json()) as Record<string, unknown>;
+  const b64 = readChatImage(data);
+  if (!b64) {
+    throw new Error("Gemini 未返回有效的图片数据");
+  }
+  return b64;
 }
 
 async function generateWithReferences(

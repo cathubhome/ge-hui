@@ -26,7 +26,7 @@ export function transcribeModel(): string {
 }
 
 export function imageModel(): string {
-  return process.env.CPA_IMAGE_MODEL?.trim() || "gpt-image-2";
+  return process.env.CPA_IMAGE_MODEL?.trim() || "gemini-3.1-flash-image";
 }
 
 const BROWSER_UA =

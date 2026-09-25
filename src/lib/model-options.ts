@@ -36,6 +36,7 @@ const CHAT_RANK: Record<string, number> = {
 export const CHAT_ALLOWLIST = Object.keys(CHAT_RANK);
 
 const IMAGE_RANK: Record<string, number> = {
+  "gemini-3.1-flash-image": 120, // Google 原生多模态极速绘本出图 · 优先推荐
   "gpt-image-2.5-sunburst": 100,
   "gpt-image-2.5-flare": 98,
   "gpt-image-2.5": 94,
@@ -53,8 +54,8 @@ export function isChatCapable(id: string): boolean {
 export function isImageCapable(id: string): boolean {
   const s = id.toLowerCase();
   if (s.includes("video")) return false;
-  // Gemini native image models need chat image output, not /images/generations.
-  if (s.includes("gemini")) return false;
+  // Gemini 3.1 Flash Image 支持多模态 Chat 生图
+  if (s.includes("gemini") && s.includes("image")) return true;
   if (s.includes("gpt-image")) return true;
   if (s.includes("grok-imagine-image")) return true;
   return false;
