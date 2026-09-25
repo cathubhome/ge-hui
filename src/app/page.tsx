@@ -1094,9 +1094,21 @@ export default function HomePage() {
   }
 
   function getListenUrl(): string | undefined {
-    // 仅当用户真正上传并压缩了音频时才生成伴唱二维码，杜绝拿 jobId 冒充导致 404
-    if (typeof window === "undefined" || !audioId) return undefined;
-    return `${window.location.origin}/p/${audioId}`;
+    if (typeof window === "undefined") return undefined;
+    // 1. 官方精选样板模式：仅当该官方绘本具备对应原声音频时，生成官方经典伴唱播放二维码
+    if (isSampleMode) {
+      const sample = SAMPLE_BOOKS[sampleCarouselIndex];
+      if (sample && sample.sampleAudio) {
+        return `${window.location.origin}/p/${sample.id}`;
+      }
+      return undefined;
+    }
+    // 2. 自定义创作模式：仅当用户真正上传并压缩了音频时才生成专属伴唱码
+    if (audioId) {
+      return `${window.location.origin}/p/${audioId}`;
+    }
+    // 3. 纯文本歌词/纯绘本抽词无音频：严格返回 undefined，画布引擎优雅绘制亲子启蒙徽章，杜绝无效死码
+    return undefined;
   }
 
   async function onPrintA4() {

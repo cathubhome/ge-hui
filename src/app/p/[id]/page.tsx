@@ -50,6 +50,7 @@ export default function MobilePlayerPage({ params }: Props) {
           if (!cancelled && data.meta) {
             if (data.meta.songTitle) setTitle(data.meta.songTitle);
             if (data.meta.lyrics) setLyrics(data.meta.lyrics);
+            if (data.meta.coverUrl) setCoverUrl(data.meta.coverUrl);
           }
         }
       } catch {
