@@ -2010,110 +2010,105 @@ export default function HomePage() {
                     </button>
                   </div>
                 ) : null}
-                {/* 操作栏：自适应弹性包装，手机端横向排版防溢出 */}
-                <div className="flex items-center justify-between gap-1.5 pt-2 flex-wrap sm:flex-nowrap">
-                  {/* 左侧：重画 */}
-                  <div className="flex-shrink-0">
-                    <button
-                      type="button"
-                      disabled={jobBusy || isPrinting || isColoring}
-                      onClick={onNewGenerate}
-                      className="inline-flex items-center justify-center gap-1 rounded-xl border border-[#e5ded4] bg-white px-2.5 h-8.5 text-xs font-semibold text-neutral-700 transition hover:border-[#ff6b2c]/60 hover:bg-[#fff7f2] hover:text-[#c2410c] shadow-2xs disabled:opacity-50 whitespace-nowrap active:scale-95"
-                      title="保留当前歌词，换个构图重画一张"
-                    >
-                      <RefreshIcon className="w-3.5 h-3.5 text-neutral-500" />
-                      <span>重画</span>
-                    </button>
-                  </div>
+                {/* 操作栏：手机端自适应两排网格（3列+3列完整可见、绝不横向溢出），电脑端单排展示 */}
+                <div className="grid grid-cols-3 gap-2 pt-2 sm:flex sm:items-center sm:justify-between sm:gap-1.5">
+                  {/* 1. 重画 */}
+                  <button
+                    type="button"
+                    disabled={jobBusy || isPrinting || isColoring}
+                    onClick={onNewGenerate}
+                    className="inline-flex items-center justify-center gap-1 rounded-xl border border-[#e5ded4] bg-white px-2 h-9 text-xs font-semibold text-neutral-700 transition hover:border-[#ff6b2c]/60 hover:bg-[#fff7f2] hover:text-[#c2410c] shadow-2xs disabled:opacity-50 whitespace-nowrap active:scale-95 cursor-pointer w-full sm:w-auto"
+                    title="保留当前歌词，换个构图重画一张"
+                  >
+                    <RefreshIcon className="w-3.5 h-3.5 text-neutral-500 shrink-0" />
+                    <span>重画</span>
+                  </button>
 
-                  {/* 右侧：五大交付与互动项（支持移动端横向平滑滚动防撑开） */}
-                  <div className="flex items-center gap-1.5 overflow-x-auto max-w-full pb-0.5 sm:pb-0 scrollbar-none">
-                    {/* 1. 存为 PDF */}
-                    <button
-                      type="button"
-                      disabled={isPrinting || isColoring}
-                      onClick={() => void onDownloadPdf()}
-                      className="inline-flex items-center justify-center gap-1 rounded-xl border border-[#e5ded4] bg-white px-2.5 h-8.5 text-xs font-semibold text-neutral-700 transition hover:border-[#ff6b2c]/60 hover:bg-[#fff7f2] hover:text-[#c2410c] shadow-2xs disabled:opacity-50 whitespace-nowrap shrink-0 active:scale-95"
-                      title="直接下载标准的 A4 PDF 文件，专为打印贴墙设计"
-                    >
-                      {isPrinting ? (
-                        <>
-                          <span className="inline-block h-3.5 w-3.5 animate-spin rounded-full border-2 border-[#ff6b2c] border-t-transparent" />
-                          <span>生成中…</span>
-                        </>
-                      ) : (
-                        <>
-                          <PdfFileIcon className="w-3.5 h-3.5 text-neutral-500" />
-                          <span>存为 PDF</span>
-                        </>
-                      )}
-                    </button>
+                  {/* 2. 存图 */}
+                  <button
+                    type="button"
+                    disabled={isPrinting || isColoring}
+                    onClick={onDownload}
+                    className="inline-flex items-center justify-center gap-1 rounded-xl border border-[#e5ded4] bg-white px-2 h-9 text-xs font-semibold text-neutral-700 transition hover:border-[#ff6b2c]/60 hover:bg-[#fff7f2] hover:text-[#c2410c] shadow-2xs disabled:opacity-50 whitespace-nowrap active:scale-95 cursor-pointer w-full sm:w-auto"
+                    title="下载高清绘本图片 (PNG)"
+                  >
+                    <ImageIcon className="w-3.5 h-3.5 text-neutral-500 shrink-0" />
+                    <span>存图</span>
+                  </button>
 
-                    {/* 2. 打印 */}
-                    <button
-                      type="button"
-                      disabled={isPrinting || isColoring}
-                      onClick={() => void onPrintA4()}
-                      className="inline-flex items-center justify-center gap-1 rounded-xl border border-[#e5ded4] bg-white px-2.5 h-8.5 text-xs font-semibold text-neutral-700 transition hover:border-[#ff6b2c]/60 hover:bg-[#fff7f2] hover:text-[#c2410c] shadow-2xs disabled:opacity-50 whitespace-nowrap shrink-0 active:scale-95"
-                      title="调起系统打印机即刻出纸"
-                    >
-                      <PrintIcon className="w-3.5 h-3.5 text-neutral-500" />
-                      <span>打印</span>
-                    </button>
+                  {/* 3. 涂色卡 */}
+                  <button
+                    type="button"
+                    disabled={isPrinting || isColoring}
+                    onClick={() => void onDownloadColoring()}
+                    className={`inline-flex items-center justify-center gap-1 rounded-xl border px-2 h-9 text-xs font-semibold shadow-2xs disabled:opacity-50 whitespace-nowrap transition active:scale-95 cursor-pointer w-full sm:w-auto ${
+                      coloringSuccess
+                        ? "border-emerald-300 bg-emerald-50 text-emerald-700 font-bold"
+                        : "border-[#e5ded4] bg-white text-neutral-700 hover:border-[#ff6b2c]/60 hover:bg-[#fff7f2] hover:text-[#c2410c]"
+                    }`}
+                    title="一键提取黑白线稿并合成 A4 涂色卡，支持蜡笔涂鸦与描红"
+                  >
+                    {isColoring ? (
+                      <>
+                        <span className="inline-block h-3.5 w-3.5 animate-spin rounded-full border-2 border-[#ff6b2c] border-t-transparent" />
+                        <span className="truncate">{coloringStage}</span>
+                      </>
+                    ) : coloringSuccess ? (
+                      <>
+                        <span aria-hidden>✓</span>
+                        <span>已导出</span>
+                      </>
+                    ) : (
+                      <>
+                        <PencilIcon className="w-3.5 h-3.5 text-neutral-500 shrink-0" />
+                        <span>涂色卡</span>
+                      </>
+                    )}
+                  </button>
 
-                    {/* 3. 存图 */}
-                    <button
-                      type="button"
-                      disabled={isPrinting || isColoring}
-                      onClick={onDownload}
-                      className="inline-flex items-center justify-center gap-1 rounded-xl border border-[#e5ded4] bg-white px-2.5 h-8.5 text-xs font-semibold text-neutral-700 transition hover:border-[#ff6b2c]/60 hover:bg-[#fff7f2] hover:text-[#c2410c] shadow-2xs disabled:opacity-50 whitespace-nowrap shrink-0 active:scale-95"
-                      title="下载高清绘本图片 (PNG)"
-                    >
-                      <ImageIcon className="w-3.5 h-3.5 text-neutral-500" />
-                      <span>存图</span>
-                    </button>
+                  {/* 4. 存为 PDF */}
+                  <button
+                    type="button"
+                    disabled={isPrinting || isColoring}
+                    onClick={() => void onDownloadPdf()}
+                    className="inline-flex items-center justify-center gap-1 rounded-xl border border-[#e5ded4] bg-white px-2 h-9 text-xs font-semibold text-neutral-700 transition hover:border-[#ff6b2c]/60 hover:bg-[#fff7f2] hover:text-[#c2410c] shadow-2xs disabled:opacity-50 whitespace-nowrap active:scale-95 cursor-pointer w-full sm:w-auto"
+                    title="直接下载标准的 A4 PDF 文件，专为打印贴墙设计"
+                  >
+                    {isPrinting ? (
+                      <>
+                        <span className="inline-block h-3.5 w-3.5 animate-spin rounded-full border-2 border-[#ff6b2c] border-t-transparent" />
+                        <span>生成中…</span>
+                      </>
+                    ) : (
+                      <>
+                        <PdfFileIcon className="w-3.5 h-3.5 text-neutral-500 shrink-0" />
+                        <span>存为 PDF</span>
+                      </>
+                    )}
+                  </button>
 
-                    {/* 4. 涂色卡 */}
-                    <button
-                      type="button"
-                      disabled={isPrinting || isColoring}
-                      onClick={() => void onDownloadColoring()}
-                      className={`inline-flex items-center justify-center gap-1 rounded-xl border px-2.5 h-8.5 text-xs font-semibold shadow-2xs disabled:opacity-50 whitespace-nowrap shrink-0 transition active:scale-95 ${
-                        coloringSuccess
-                          ? "border-emerald-300 bg-emerald-50 text-emerald-700 font-bold"
-                          : "border-[#e5ded4] bg-white text-neutral-700 hover:border-[#ff6b2c]/60 hover:bg-[#fff7f2] hover:text-[#c2410c]"
-                      }`}
-                      title="一键提取黑白线稿并合成 A4 涂色卡，支持蜡笔涂鸦与描红"
-                    >
-                      {isColoring ? (
-                        <>
-                          <span className="inline-block h-3.5 w-3.5 animate-spin rounded-full border-2 border-[#ff6b2c] border-t-transparent" />
-                          <span>{coloringStage}</span>
-                        </>
-                      ) : coloringSuccess ? (
-                        <>
-                          <span aria-hidden>✓</span>
-                          <span>已导出</span>
-                        </>
-                      ) : (
-                        <>
-                          <PencilIcon className="w-3.5 h-3.5 text-neutral-500" />
-                          <span>涂色卡</span>
-                        </>
-                      )}
-                    </button>
+                  {/* 5. 打印 */}
+                  <button
+                    type="button"
+                    disabled={isPrinting || isColoring}
+                    onClick={() => void onPrintA4()}
+                    className="inline-flex items-center justify-center gap-1 rounded-xl border border-[#e5ded4] bg-white px-2 h-9 text-xs font-semibold text-neutral-700 transition hover:border-[#ff6b2c]/60 hover:bg-[#fff7f2] hover:text-[#c2410c] shadow-2xs disabled:opacity-50 whitespace-nowrap active:scale-95 cursor-pointer w-full sm:w-auto"
+                    title="调起系统打印机即刻出纸"
+                  >
+                    <PrintIcon className="w-3.5 h-3.5 text-neutral-500 shrink-0" />
+                    <span>打印</span>
+                  </button>
 
-                    {/* 5. 打赏 */}
-                    <button
-                      type="button"
-                      onClick={() => setShowTip(true)}
-                      className="inline-flex items-center justify-center gap-1 rounded-xl border border-[#e5ded4] bg-white px-2.5 h-8.5 text-xs font-semibold text-neutral-700 transition hover:border-[#ff6b2c]/60 hover:bg-[#fff7f2] hover:text-[#c2410c] shadow-2xs whitespace-nowrap shrink-0 active:scale-95"
-                      title="喜欢歌绘可以打赏请作者喝杯奶茶哦～"
-                    >
-                      <TeaCupIcon className="w-3.5 h-3.5" />
-                      <span>打赏</span>
-                    </button>
-                  </div>
+                  {/* 6. 打赏 */}
+                  <button
+                    type="button"
+                    onClick={() => setShowTip(true)}
+                    className="inline-flex items-center justify-center gap-1 rounded-xl border border-[#e5ded4] bg-white px-2 h-9 text-xs font-semibold text-neutral-700 transition hover:border-[#ff6b2c]/60 hover:bg-[#fff7f2] hover:text-[#c2410c] shadow-2xs whitespace-nowrap active:scale-95 cursor-pointer w-full sm:w-auto"
+                    title="喜欢歌绘可以打赏请作者喝杯奶茶哦～"
+                  >
+                    <TeaCupIcon className="w-3.5 h-3.5 shrink-0" />
+                    <span>请杯奶茶</span>
+                  </button>
                 </div>
 
                 {/* 分镜构思与台词折叠栏（友好图文排版，告别生硬 JSON） */}

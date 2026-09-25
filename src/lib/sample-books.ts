@@ -21,7 +21,7 @@ export const SAMPLE_BOOKS: SampleBook[] = [
     tag: "身体认知 · 亲子指读",
     icon: "🙆‍♂️",
     imageUrl: "/samples/sample-head-shoulders.png",
-    sampleAudio: "/samples/audio/2-头肩膀膝盖脚趾-Head_Shoulders_Knees_and_Toes.wav",
+    sampleAudio: "/samples/audio/2-头肩膀膝盖脚趾-Head_Shoulders_Knees_and_Toes.mp3",
     lyrics: `Head, shoulders, knees and toes, knees and toes.
 Head, shoulders, knees and toes, knees and toes.
 And eyes and ears and mouth and nose.
@@ -49,7 +49,7 @@ Head, shoulders, knees and toes, knees and toes.`,
     tag: "动物认知 · 活泼躲猫猫",
     icon: "🐯",
     imageUrl: "/samples/sample-two-tigers.png",
-    sampleAudio: "/samples/audio/6-两只老虎-Two_Tigers.aac",
+    sampleAudio: "/samples/audio/6-两只老虎-Two_Tigers.mp3",
     lyrics: `两只老虎，两只老虎，跑得快，跑得快。
 一只没有耳朵，一只没有尾巴，真奇怪，真奇怪。
 Two little tigers, two little tigers, running fast, running fast.
@@ -77,7 +77,7 @@ One has no ears, one has no tail, how strange, how strange!`,
     tag: "情绪互动 · 拍手律动",
     icon: "👏",
     imageUrl: "/samples/sample-if-you-happy.png",
-    sampleAudio: "/samples/audio/5-幸福拍手歌-If_Youre_Happy_and_You_Know_It.flac",
+    sampleAudio: "/samples/audio/5-幸福拍手歌-If_Youre_Happy_and_You_Know_It.mp3",
     lyrics: `If you're happy and you know it, clap your hands.
 If you're happy and you know it, clap your hands.
 If you're happy and you know it, and you really want to show it.
@@ -135,6 +135,7 @@ How I wonder what you are!`,
     tag: "出行认知 · 磨耳神曲",
     icon: "🚌",
     imageUrl: "/samples/sample-wheels-bus.png",
+    sampleAudio: "/samples/audio/wheels-on-the-bus.mp3",
     lyrics: `The wheels on the bus go round and round,
 Round and round, round and round.
 The wheels on the bus go round and round,
@@ -164,7 +165,7 @@ All through the town.`,
     tag: "农场动物 · 叫声启蒙",
     icon: "🐮",
     imageUrl: "/samples/sample-old-macdonald.png",
-    sampleAudio: "/samples/audio/3-王老先生有块地-Old_MacDonald_Had_a_Farm.m4a",
+    sampleAudio: "/samples/audio/3-王老先生有块地-Old_MacDonald_Had_a_Farm.mp3",
     lyrics: `Old MacDonald had a farm, E-I-E-I-O!
 And on his farm he had a cow, E-I-E-I-O!
 With a moo-moo here and a moo-moo there,
@@ -249,7 +250,7 @@ Front and back and in between, sparkling clean!`,
     tag: "字母拼读 · 欢快活泼",
     icon: "🐶",
     imageUrl: "/samples/sample-bingo.png",
-    sampleAudio: "/samples/audio/4-小狗宾果-Bingo.ogg",
+    sampleAudio: "/samples/audio/4-小狗宾果-Bingo.mp3",
     lyrics: `There was a farmer had a dog,
 And Bingo was his name-o.
 B-I-N-G-O, B-I-N-G-O,
@@ -277,6 +278,7 @@ B-I-N-G-O, and Bingo was his name-o!`,
     tag: "数字启蒙 · 亲情温润",
     icon: "🦆",
     imageUrl: "/samples/sample-five-ducks.png",
+    sampleAudio: "/samples/audio/five-little-ducks.mp3",
     lyrics: `Five little ducks went out one day,
 Over the hill and far away.
 Mother duck said, "Quack, quack, quack, quack!"
@@ -331,6 +333,7 @@ And all of the five little ducks came back!`,
     tag: "睡前恬静 · 温暖安抚",
     icon: "🌙",
     imageUrl: "/samples/sample-rock-a-bye.png",
+    sampleAudio: "/samples/audio/rock-a-bye-baby.mp3",
     lyrics: `Rock-a-bye baby, on the tree top,
 When the wind blows, the cradle will rock.
 Softly and gently, into your dreams,
