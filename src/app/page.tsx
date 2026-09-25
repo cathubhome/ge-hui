@@ -193,6 +193,36 @@ function PencilIcon({ className = "w-3.5 h-3.5" }: { className?: string }) {
   );
 }
 
+function SpeakerIcon({ className = "w-3.5 h-3.5", playing = false }: { className?: string; playing?: boolean }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" fill={playing ? "currentColor" : "none"} fillOpacity={playing ? "0.2" : "0"} />
+      {playing ? (
+        <>
+          <path d="M15.54 8.46a5 5 0 010 7.07" strokeWidth="2.5" className="animate-pulse" />
+          <path d="M19.07 4.93a10 10 0 010 14.14" strokeWidth="2" className="opacity-80" />
+        </>
+      ) : (
+        <>
+          <line x1="23" y1="9" x2="17" y2="15" />
+          <line x1="17" y1="9" x2="23" y2="15" />
+        </>
+      )}
+    </svg>
+  );
+}
+
+function ZoomInIcon({ className = "w-3.5 h-3.5" }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <circle cx="11" cy="11" r="8" />
+      <line x1="21" y1="21" x2="16.65" y2="16.65" />
+      <line x1="11" y1="8" x2="11" y2="14" />
+      <line x1="8" y1="11" x2="14" y2="11" />
+    </svg>
+  );
+}
+
 function SoftGridSkeleton() {
   return (
     <div className="soft-grid mx-auto grid w-full max-w-xs grid-cols-2 gap-2 rounded-2xl border border-[#f0e6d4] bg-[#fffdf8]/80 p-3">
@@ -241,6 +271,9 @@ export default function HomePage() {
   const [activeSampleId, setActiveSampleId] = useState<string>("sample-head-shoulders");
   const [sampleCarouselIndex, setSampleCarouselIndex] = useState(0);
   const [isSampleMode, setIsSampleMode] = useState<boolean>(false);
+  const [previewImageModal, setPreviewImageModal] = useState<string | null>(null);
+  const [isPlayingAudio, setIsPlayingAudio] = useState(false);
+  const audioPlayerRef = useRef<HTMLAudioElement | null>(null);
   const touchStartXRef = useRef<number | null>(null);
 
   const prevSample = useCallback(() => {
@@ -253,6 +286,40 @@ export default function HomePage() {
     const nextIdx = (sampleCarouselIndex + 1) % SAMPLE_BOOKS.length;
     setSampleCarouselIndex(nextIdx);
     applySampleBook(SAMPLE_BOOKS[nextIdx]);
+  }, [sampleCarouselIndex]);
+
+  // Toggle sample native vocal audio playback
+  const togglePlayAudio = useCallback(() => {
+    const currentSample = SAMPLE_BOOKS[sampleCarouselIndex];
+    if (!currentSample?.sampleAudio) return;
+
+    if (!audioPlayerRef.current) {
+      const audio = new Audio(currentSample.sampleAudio);
+      audio.onended = () => setIsPlayingAudio(false);
+      audio.onerror = () => setIsPlayingAudio(false);
+      audioPlayerRef.current = audio;
+    }
+
+    if (isPlayingAudio) {
+      audioPlayerRef.current.pause();
+      setIsPlayingAudio(false);
+    } else {
+      if (audioPlayerRef.current.src !== window.location.origin + currentSample.sampleAudio) {
+        audioPlayerRef.current.src = currentSample.sampleAudio;
+      }
+      audioPlayerRef.current.play().then(
+        () => setIsPlayingAudio(true),
+        () => setIsPlayingAudio(false)
+      );
+    }
+  }, [sampleCarouselIndex, isPlayingAudio]);
+
+  // Stop audio on switching songs
+  useEffect(() => {
+    if (audioPlayerRef.current && isPlayingAudio) {
+      audioPlayerRef.current.pause();
+      setIsPlayingAudio(false);
+    }
   }, [sampleCarouselIndex]);
 
   const [quota, setQuota] = useState<QuotaStatus | null>(null);
@@ -715,18 +782,19 @@ export default function HomePage() {
     };
   }, [step]);
 
-  // Modal Escape handling: tip and quota modals
+  // Modal Escape handling: tip, quota, and preview image modals
   useEffect(() => {
-    if (!showTip && !showQuotaModal) return;
+    if (!showTip && !showQuotaModal && !previewImageModal) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         setShowTip(false);
         setShowQuotaModal(false);
+        setPreviewImageModal(null);
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [showTip, showQuotaModal]);
+  }, [showTip, showQuotaModal, previewImageModal]);
 
   async function onPickFiles(fileList: FileList | File[] | null) {
     if (!fileList || fileList.length === 0) return;
@@ -1159,18 +1227,16 @@ export default function HomePage() {
         </div>
       </header>
 
-      {/* Compact demo — whole card clickable */}
+      {/* Compact demo — 只有点击右侧按钮才载入 */}
       <section className="paper-card mb-6 overflow-hidden rounded-3xl">
-        <button
-          type="button"
-          onClick={tryDemoSong}
-          className="group flex w-full cursor-pointer flex-col gap-3 p-3 text-left transition-all duration-300 hover:bg-[#fff8f3] sm:flex-row sm:items-center sm:gap-4 sm:p-4"
-        >
+        <div className="flex w-full flex-col gap-3 p-3 sm:flex-row sm:items-center sm:gap-4 sm:p-4">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src="/samples/ge-hui-final-sample.png"
             alt="歌绘成品示例：Head Shoulders Knees and Toes"
-            className="pointer-events-none w-full aspect-[16/10] sm:aspect-auto sm:h-28 sm:w-44 shrink-0 rounded-2xl border border-[#f0e6d4] object-contain sm:object-cover sm:object-top bg-white"
+            className="w-full aspect-[16/10] sm:aspect-auto sm:h-28 sm:w-44 shrink-0 rounded-2xl border border-[#f0e6d4] object-contain sm:object-cover sm:object-top bg-white cursor-pointer hover:opacity-95 transition"
+            onClick={() => setPreviewImageModal("/samples/ge-hui-final-sample.png")}
+            title="点击放大查看高清大图"
           />
           <div className="min-w-0 flex-1">
             <p className="text-xs font-semibold tracking-wide text-[#ff6b2c]">成品小样</p>
@@ -1178,14 +1244,18 @@ export default function HomePage() {
               生成后的绘本页可以长这样
             </p>
             <p className="mt-1 text-xs leading-relaxed text-neutral-500">
-              点击即可载入这首经典儿歌，为宝贝制作同款精美绘本～
+              点击右侧按钮载入这首经典儿歌，为宝贝制作同款精美绘本～
             </p>
           </div>
-          <span className="pointer-events-none flex shrink-0 items-center gap-1 rounded-full border border-orange-200/90 bg-white/95 px-3.5 py-1.5 text-xs font-bold text-[#c2410c] shadow-2xs transition-all duration-300 group-hover:border-[#ff6b2c] group-hover:bg-[#fff4ee] group-hover:shadow-xs sm:self-center">
+          <button
+            type="button"
+            onClick={tryDemoSong}
+            className="group flex shrink-0 items-center justify-center gap-1.5 rounded-full border border-orange-200/90 bg-white/95 px-4 py-2 text-xs font-bold text-[#c2410c] shadow-2xs transition-all duration-300 hover:border-[#ff6b2c] hover:bg-[#fff4ee] hover:shadow-xs active:scale-95 sm:self-center cursor-pointer"
+          >
             <span>一键做同款 ✨</span>
             <span className="text-sm font-bold text-orange-400 transition-transform duration-300 group-hover:translate-x-0.5" aria-hidden>›</span>
-          </span>
-        </button>
+          </button>
+        </div>
       </section>
 
       {/* Two-column shell: form | sticky stage */}
@@ -1194,7 +1264,7 @@ export default function HomePage() {
         <section className="paper-card rounded-3xl p-5 sm:p-6">
           <label className="block text-sm font-semibold text-neutral-800">歌曲名（可选）</label>
           <input
-            className="mt-2 w-full rounded-xl border border-[#f0e6d4] bg-[#fffdf8] px-3 py-2.5 text-sm outline-none ring-[#ff6b2c]/40 focus:ring-2 disabled:opacity-60"
+            className="mt-2 w-full rounded-xl border border-[#f0e6d4] bg-[#fffdf8] px-3 py-2.5 text-base sm:text-sm outline-none ring-[#ff6b2c]/40 focus:ring-2 disabled:opacity-60"
             placeholder="例如 Head Shoulders Knees and Toes"
             value={songTitle}
             disabled={jobBusy}
@@ -1318,7 +1388,7 @@ export default function HomePage() {
                   value={aiTopic}
                   onChange={(e) => setAiTopic(e.target.value)}
                   placeholder="如：宝宝乐乐不肯刷牙 / 喜欢大恐龙"
-                  className="flex-1 rounded-lg border border-[#f0e6d4] bg-white px-2.5 py-1 text-xs outline-none ring-[#ff6b2c]/40 focus:ring-1 text-neutral-700 placeholder:text-neutral-400"
+                  className="flex-1 rounded-lg border border-[#f0e6d4] bg-white px-2.5 py-1 text-base sm:text-xs outline-none ring-[#ff6b2c]/40 focus:ring-1 text-neutral-700 placeholder:text-neutral-400"
                   onKeyDown={(e) => {
                     if (e.key === "Enter") void onComposeRhyme();
                   }}
@@ -1374,7 +1444,7 @@ export default function HomePage() {
             </div>
           </div>
           <textarea
-            className="mt-2 min-h-[140px] w-full resize-y rounded-2xl border border-[#f0e6d4] bg-[#fffdf8] px-3 py-3 text-sm leading-relaxed outline-none ring-[#ff6b2c]/40 focus:ring-2 disabled:opacity-60"
+            className="mt-2 min-h-[140px] w-full resize-y rounded-2xl border border-[#f0e6d4] bg-[#fffdf8] px-3 py-3 text-base sm:text-sm leading-relaxed outline-none ring-[#ff6b2c]/40 focus:ring-2 disabled:opacity-60"
             placeholder="把歌词粘贴在这里，或上传文件自动整理…"
             value={lyrics}
             disabled={jobBusy}
@@ -1456,7 +1526,7 @@ export default function HomePage() {
                 value={customPrompt}
                 onChange={(e) => setCustomPrompt(e.target.value)}
                 placeholder="想让画面里发生什么？如：在温暖的阳光草地上、大家一起吃西瓜（限40字）"
-                className="w-full rounded-xl border border-[#f0e6d4] bg-white px-3 py-1.5 text-xs outline-none ring-[#ff6b2c]/40 focus:ring-1 text-neutral-700 placeholder:text-neutral-400"
+                className="w-full rounded-xl border border-[#f0e6d4] bg-white px-3 py-2 text-base sm:text-xs outline-none ring-[#ff6b2c]/40 focus:ring-1 text-neutral-700 placeholder:text-neutral-400"
               />
             </div>
           </div>
@@ -1798,9 +1868,11 @@ export default function HomePage() {
 
             {imageDataUrl ? (
               <div className="space-y-3">
-                {/* 绘本大图：手机端支持左右滑动手势切歌 */}
+                {/* 绘本大图：手机端支持左右滑动手势切歌，点击放大预览 */}
                 <div
-                  className="relative touch-pan-y"
+                  className="relative touch-pan-y group cursor-pointer"
+                  onClick={() => setPreviewImageModal(imageDataUrl)}
+                  title="点击查看全屏高清大图"
                   onTouchStart={(e) => {
                     touchStartXRef.current = e.touches[0]?.clientX ?? null;
                   }}
@@ -1825,8 +1897,13 @@ export default function HomePage() {
                     alt="生成的歌绘本页"
                     className="w-full aspect-[3/2] object-cover rounded-2xl border border-[#f0e6d4] bg-white shadow-sm transition-all duration-300 animate-in fade-in"
                   />
+                  {/* 放大看原图悬浮提示 */}
+                  <div className="absolute top-2.5 right-2.5 rounded-full bg-white/90 border border-neutral-200/80 px-2.5 py-1 text-[11px] font-semibold text-neutral-700 shadow-2xs backdrop-blur-xs flex items-center gap-1 group-hover:bg-white group-hover:border-[#ff6b2c]/60 group-hover:text-[#c2410c] transition">
+                    <ZoomInIcon className="w-3.5 h-3.5" />
+                    <span>查看大图</span>
+                  </div>
                   {isSampleMode ? (
-                    <div className="absolute bottom-2 right-2 rounded-full bg-black/45 backdrop-blur-xs px-2.5 py-0.5 text-[10px] text-white/90 sm:hidden pointer-events-none">
+                    <div className="absolute bottom-2.5 left-2.5 rounded-full bg-black/50 backdrop-blur-xs px-2.5 py-0.5 text-[10px] text-white/90 sm:hidden pointer-events-none">
                       👈 左右滑动切歌 👉
                     </div>
                   ) : null}
@@ -1835,15 +1912,40 @@ export default function HomePage() {
                 {/* 样板模式专属：沉浸式翻书导览栏（置于大画正下方） */}
                 {isSampleMode ? (
                   <div className="flex flex-col gap-2 rounded-2xl border border-[#f0e6d4]/90 bg-[#fffdf8] p-2.5 sm:px-3.5 sm:py-2.5 shadow-2xs transition">
-                    {/* 上排：清晰曲名与展厅序号 */}
-                    <div className="flex items-center justify-between px-1">
-                      <span className="flex items-center gap-1.5 text-xs font-bold text-neutral-800 truncate max-w-[200px] sm:max-w-xs">
-                        <span className="text-[#ff6b2c]">🎵</span>
-                        <span className="truncate">{SAMPLE_BOOKS[sampleCarouselIndex]?.title || "官方绘本"}</span>
-                      </span>
-                      <span className="rounded-full bg-orange-100/70 border border-orange-200/60 px-2 py-0.5 text-[10px] font-bold text-[#c2410c] shrink-0">
-                        {sampleCarouselIndex + 1} / {SAMPLE_BOOKS.length} 套
-                      </span>
+                    {/* 上排：清晰曲名、展厅序号、以及原声伴唱播放喇叭 */}
+                    <div className="flex items-center justify-between px-1 gap-1.5">
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <span className="text-[#ff6b2c] shrink-0">🎵</span>
+                        <span className="text-xs font-bold text-neutral-800 truncate max-w-[150px] sm:max-w-xs">
+                          {SAMPLE_BOOKS[sampleCarouselIndex]?.title || "官方绘本"}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        {/* 原声儿歌伴唱喇叭按钮 */}
+                        {SAMPLE_BOOKS[sampleCarouselIndex]?.sampleAudio ? (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              togglePlayAudio();
+                            }}
+                            className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-bold transition shadow-2xs active:scale-95 cursor-pointer ${
+                              isPlayingAudio
+                                ? "bg-orange-500 text-white shadow-orange-500/25 ring-2 ring-orange-300"
+                                : "bg-white border border-[#f0e6d4] text-neutral-700 hover:border-orange-300 hover:bg-[#fff8f3] hover:text-[#c2410c]"
+                            }`}
+                            title={isPlayingAudio ? "点击暂停原声伴唱" : "点击播放高清原声伴唱"}
+                          >
+                            <SpeakerIcon className="w-3.5 h-3.5" playing={isPlayingAudio} />
+                            <span>{isPlayingAudio ? "播放中" : "听儿歌"}</span>
+                          </button>
+                        ) : null}
+
+                        <span className="rounded-full bg-orange-100/70 border border-orange-200/60 px-2 py-0.5 text-[10px] font-bold text-[#c2410c]">
+                          {sampleCarouselIndex + 1} / {SAMPLE_BOOKS.length} 套
+                        </span>
+                      </div>
                     </div>
 
                     {/* 下排：胶囊翻页按钮与导览珍珠 */}
@@ -2157,7 +2259,7 @@ export default function HomePage() {
                     value={vipCodeInput}
                     onChange={(e) => setVipCodeInput(e.target.value)}
                     placeholder="粘贴获得的卡密（如：GH1-XXXX-XXXX...）"
-                    className="flex-1 rounded-xl border border-[#f0e6d4] bg-white px-2.5 py-1.5 text-xs outline-none ring-[#ff6b2c]/40 focus:ring-1 text-neutral-700 placeholder:text-neutral-400 font-mono"
+                    className="flex-1 rounded-xl border border-[#f0e6d4] bg-white px-2.5 py-2 text-base sm:text-xs outline-none ring-[#ff6b2c]/40 focus:ring-1 text-neutral-700 placeholder:text-neutral-400 font-mono"
                   />
                   <button
                     type="button"
@@ -2268,6 +2370,61 @@ export default function HomePage() {
             <p className="mt-3.5 text-[11px] text-neutral-400">
               长按或扫一扫 · 感谢支持歌绘持续进化～
             </p>
+          </div>
+        </div>
+      ) : null}
+
+      {/* 绘本大图高清沉浸式全屏预览灯箱 (Lightbox) */}
+      {previewImageModal ? (
+        <div className="fixed inset-0 z-[120] flex items-center justify-center p-3 sm:p-6 bg-black/85 backdrop-blur-md animate-in fade-in duration-200">
+          <button
+            type="button"
+            className="absolute inset-0 w-full h-full cursor-zoom-out"
+            aria-label="关闭原图预览"
+            onClick={() => setPreviewImageModal(null)}
+          />
+
+          <div className="relative z-10 max-h-[94vh] max-w-5xl w-full flex flex-col items-center">
+            {/* 右上角关闭按钮 */}
+            <button
+              type="button"
+              onClick={() => setPreviewImageModal(null)}
+              className="absolute -top-12 right-0 sm:right-2 flex h-9 w-9 items-center justify-center rounded-full bg-white/20 hover:bg-white/40 text-white backdrop-blur-xs transition cursor-pointer text-lg"
+              title="关闭 (Esc)"
+              aria-label="关闭全屏预览"
+            >
+              ✕
+            </button>
+
+            {/* 高清图片 */}
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={previewImageModal}
+              alt="全屏高清绘本大图"
+              className="max-h-[82vh] w-auto max-w-full rounded-2xl border border-white/20 bg-white object-contain shadow-2xl animate-in zoom-in-95 duration-200"
+              onClick={(e) => e.stopPropagation()}
+            />
+
+            {/* 底部浮动工具条 */}
+            <div className="mt-3 flex items-center gap-3">
+              <span className="text-xs text-white/80 font-medium hidden sm:inline">
+                高清大图 · 点击空白或右上角关闭
+              </span>
+              <button
+                type="button"
+                onClick={() => {
+                  const a = document.createElement("a");
+                  a.href = previewImageModal;
+                  a.download = `${(songTitle || "ge-hui").replace(/[^\w一-鿿-]+/g, "_") || "ge-hui"}-preview.png`;
+                  document.body.appendChild(a);
+                  a.click();
+                  a.remove();
+                }}
+                className="inline-flex items-center gap-1.5 rounded-full bg-[#ff6b2c] hover:bg-[#ef5a1a] px-4 py-1.5 text-xs font-bold text-white shadow-md active:scale-95 transition cursor-pointer"
+              >
+                <span>💾 保存到本地</span>
+              </button>
+            </div>
           </div>
         </div>
       ) : null}
