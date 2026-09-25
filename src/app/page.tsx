@@ -114,6 +114,85 @@ function MusicBookIcons() {
   );
 }
 
+function TeaCupIcon({ className = "w-4 h-4" }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path
+        d="M17 9v8a4 4 0 01-4 4H7a4 4 0 01-4-4V9a2 2 0 012-2h10a2 2 0 012 2z"
+        fill="#ff6b2c"
+        fillOpacity="0.15"
+        stroke="#ff6b2c"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M17 11h2a3 3 0 013 3v0a3 3 0 01-3 3h-2"
+        stroke="#ff6b2c"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M12 3l-1.5 4"
+        stroke="#ff6b2c"
+        strokeWidth="2"
+        strokeLinecap="round"
+      />
+      <circle cx="7" cy="14" r="1" fill="#c2410c" />
+      <circle cx="10" cy="16" r="1" fill="#c2410c" />
+      <circle cx="13" cy="14" r="1" fill="#c2410c" />
+      <circle cx="9" cy="12" r="1" fill="#c2410c" />
+    </svg>
+  );
+}
+
+function RefreshIcon({ className = "w-3.5 h-3.5" }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M21 2v6h-6M3 12a9 9 0 0115.36-6.36L21 8M3 22v-6h6M21 12a9 9 0 01-15.36 6.36L3 16" />
+    </svg>
+  );
+}
+
+function PdfFileIcon({ className = "w-3.5 h-3.5" }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
+      <polyline points="14 2 14 8 20 8" />
+      <line x1="9" y1="15" x2="15" y2="15" />
+    </svg>
+  );
+}
+
+function PrintIcon({ className = "w-3.5 h-3.5" }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <polyline points="6 9 6 2 18 2 18 9" />
+      <path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2" />
+      <rect x="6" y="14" width="12" height="8" rx="1" />
+    </svg>
+  );
+}
+
+function ImageIcon({ className = "w-3.5 h-3.5" }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+      <circle cx="8.5" cy="8.5" r="1.5" />
+      <polyline points="21 15 16 10 5 21" />
+    </svg>
+  );
+}
+
+function PencilIcon({ className = "w-3.5 h-3.5" }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M17 3a2.828 2.828 0 114 4L7.5 20.5 2 22l1.5-5.5L17 3z" />
+    </svg>
+  );
+}
+
 function SoftGridSkeleton() {
   return (
     <div className="soft-grid mx-auto grid w-full max-w-xs grid-cols-2 gap-2 rounded-2xl border border-[#f0e6d4] bg-[#fffdf8]/80 p-3">
@@ -145,6 +224,7 @@ export default function HomePage() {
   const [imageModel, setImageModel] = useState("");
   const [freeSites, setFreeSites] = useState<FreeSite[]>([]);
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const [modelsLoading, setModelsLoading] = useState(true);
   const [characterDescription, setCharacterDescription] = useState("");
   const [roleScope, setRoleScope] = useState<"default" | "solo" | "all">("default");
   const [artStyle, setArtStyle] = useState<"default" | "crayon" | "clay">("default");
@@ -161,6 +241,19 @@ export default function HomePage() {
   const [activeSampleId, setActiveSampleId] = useState<string>("sample-head-shoulders");
   const [sampleCarouselIndex, setSampleCarouselIndex] = useState(0);
   const [isSampleMode, setIsSampleMode] = useState<boolean>(false);
+  const touchStartXRef = useRef<number | null>(null);
+
+  const prevSample = useCallback(() => {
+    const prevIdx = (sampleCarouselIndex - 1 + SAMPLE_BOOKS.length) % SAMPLE_BOOKS.length;
+    setSampleCarouselIndex(prevIdx);
+    applySampleBook(SAMPLE_BOOKS[prevIdx]);
+  }, [sampleCarouselIndex]);
+
+  const nextSample = useCallback(() => {
+    const nextIdx = (sampleCarouselIndex + 1) % SAMPLE_BOOKS.length;
+    setSampleCarouselIndex(nextIdx);
+    applySampleBook(SAMPLE_BOOKS[nextIdx]);
+  }, [sampleCarouselIndex]);
 
   const [quota, setQuota] = useState<QuotaStatus | null>(null);
   const [showQuotaModal, setShowQuotaModal] = useState(false);
@@ -566,6 +659,8 @@ export default function HomePage() {
         setImageModel(data.defaults?.image ?? "");
       } catch {
         // ignore
+      } finally {
+        setModelsLoading(false);
       }
     })();
   }, []);
@@ -1075,7 +1170,7 @@ export default function HomePage() {
           <img
             src="/samples/ge-hui-final-sample.png"
             alt="歌绘成品示例：Head Shoulders Knees and Toes"
-            className="pointer-events-none h-24 w-full shrink-0 rounded-2xl border border-[#f0e6d4] object-cover object-top sm:h-28 sm:w-40"
+            className="pointer-events-none w-full aspect-[16/10] sm:aspect-auto sm:h-28 sm:w-44 shrink-0 rounded-2xl border border-[#f0e6d4] object-contain sm:object-cover sm:object-top bg-white"
           />
           <div className="min-w-0 flex-1">
             <p className="text-xs font-semibold tracking-wide text-[#ff6b2c]">成品小样</p>
@@ -1108,7 +1203,7 @@ export default function HomePage() {
 
           <div className="mt-5">
             <label className="block text-sm font-semibold text-neutral-800">
-              上传音频或 PDF
+              上传儿歌、绘本文件或照片
             </label>
             <label
               className={`mt-2 flex cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed px-4 py-7 text-center transition ${
@@ -1417,8 +1512,8 @@ export default function HomePage() {
             </div>
           ) : null}
 
-          {/* 模型未就绪时的温馨提示卡 */}
-          {!isBothModelsReady && !jobBusy ? (
+          {/* 模型未就绪时的温馨提示卡（数据加载中时不提前报虚警） */}
+          {!modelsLoading && !isBothModelsReady && !jobBusy ? (
             <div className="mb-2 rounded-2xl border border-amber-200/80 bg-amber-50/90 p-3.5 text-center text-xs text-amber-800 shadow-xs">
               <span className="font-semibold">温馨提示：</span>
               {!isChatReady && !isImageReady
@@ -1467,6 +1562,8 @@ export default function HomePage() {
                 <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
                 <span>正在一页一页画…</span>
               </>
+            ) : modelsLoading ? (
+              <span>画室准备中…</span>
             ) : !isBothModelsReady ? (
               <span>
                 {!isChatReady && !isImageReady
@@ -1701,71 +1798,97 @@ export default function HomePage() {
 
             {imageDataUrl ? (
               <div className="space-y-3">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  key={imageDataUrl}
-                  src={imageDataUrl}
-                  alt="生成的歌绘本页"
-                  className="w-full aspect-[3/2] object-cover rounded-2xl border border-[#f0e6d4] bg-white shadow-sm transition-all duration-300 animate-in fade-in"
-                />
+                {/* 绘本大图：手机端支持左右滑动手势切歌 */}
+                <div
+                  className="relative touch-pan-y"
+                  onTouchStart={(e) => {
+                    touchStartXRef.current = e.touches[0]?.clientX ?? null;
+                  }}
+                  onTouchEnd={(e) => {
+                    if (touchStartXRef.current === null) return;
+                    const endX = e.changedTouches[0]?.clientX ?? null;
+                    if (endX !== null) {
+                      const deltaX = endX - touchStartXRef.current;
+                      if (deltaX > 45 && isSampleMode) {
+                        prevSample();
+                      } else if (deltaX < -45 && isSampleMode) {
+                        nextSample();
+                      }
+                    }
+                    touchStartXRef.current = null;
+                  }}
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    key={imageDataUrl}
+                    src={imageDataUrl}
+                    alt="生成的歌绘本页"
+                    className="w-full aspect-[3/2] object-cover rounded-2xl border border-[#f0e6d4] bg-white shadow-sm transition-all duration-300 animate-in fade-in"
+                  />
+                  {isSampleMode ? (
+                    <div className="absolute bottom-2 right-2 rounded-full bg-black/45 backdrop-blur-xs px-2.5 py-0.5 text-[10px] text-white/90 sm:hidden pointer-events-none">
+                      👈 左右滑动切歌 👉
+                    </div>
+                  ) : null}
+                </div>
 
                 {/* 样板模式专属：沉浸式翻书导览栏（置于大画正下方） */}
                 {isSampleMode ? (
-                  <div className="flex items-center justify-between rounded-xl border border-[#f0e6d4]/80 bg-[#fffdf8] px-3.5 py-2 shadow-2xs transition">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const prevIdx = (sampleCarouselIndex - 1 + SAMPLE_BOOKS.length) % SAMPLE_BOOKS.length;
-                        setSampleCarouselIndex(prevIdx);
-                        applySampleBook(SAMPLE_BOOKS[prevIdx]);
-                      }}
-                      className="group flex items-center gap-1.5 text-xs font-semibold text-neutral-600 hover:text-[#c2410c] transition cursor-pointer"
-                      title="翻看上一本官方精选"
-                    >
-                      <span className="flex h-5 w-5 items-center justify-center rounded-full bg-white border border-[#f0e6d4] shadow-2xs group-hover:border-[#ff6b2c]/60 group-hover:bg-[#fff4ee] text-[10px]">‹</span>
-                      <span>上一本</span>
-                      <span className="hidden sm:inline text-[10px] text-neutral-400 font-normal">
-                        ({SAMPLE_BOOKS[(sampleCarouselIndex - 1 + SAMPLE_BOOKS.length) % SAMPLE_BOOKS.length].title.split("(")[0].trim().slice(0, 8)})
+                  <div className="flex flex-col gap-2 rounded-2xl border border-[#f0e6d4]/90 bg-[#fffdf8] p-2.5 sm:px-3.5 sm:py-2.5 shadow-2xs transition">
+                    {/* 上排：清晰曲名与展厅序号 */}
+                    <div className="flex items-center justify-between px-1">
+                      <span className="flex items-center gap-1.5 text-xs font-bold text-neutral-800 truncate max-w-[200px] sm:max-w-xs">
+                        <span className="text-[#ff6b2c]">🎵</span>
+                        <span className="truncate">{SAMPLE_BOOKS[sampleCarouselIndex]?.title || "官方绘本"}</span>
                       </span>
-                    </button>
-
-                    {/* 珍珠导览点 */}
-                    <div className="flex items-center gap-1">
-                      {SAMPLE_BOOKS.map((b, i) => (
-                        <button
-                          key={b.id}
-                          type="button"
-                          onClick={() => {
-                            setSampleCarouselIndex(i);
-                            applySampleBook(SAMPLE_BOOKS[i]);
-                          }}
-                          className={`transition-all duration-300 rounded-full cursor-pointer ${
-                            sampleCarouselIndex === i
-                              ? "h-2 w-4 bg-[#ff6b2c]"
-                              : "h-1.5 w-1.5 bg-[#f0e6d4] hover:bg-orange-300"
-                          }`}
-                          title={b.title}
-                          aria-label={`翻到第 ${i + 1} 本：${b.title}`}
-                        />
-                      ))}
+                      <span className="rounded-full bg-orange-100/70 border border-orange-200/60 px-2 py-0.5 text-[10px] font-bold text-[#c2410c] shrink-0">
+                        {sampleCarouselIndex + 1} / {SAMPLE_BOOKS.length} 套
+                      </span>
                     </div>
 
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const nextIdx = (sampleCarouselIndex + 1) % SAMPLE_BOOKS.length;
-                        setSampleCarouselIndex(nextIdx);
-                        applySampleBook(SAMPLE_BOOKS[nextIdx]);
-                      }}
-                      className="group flex items-center gap-1.5 text-xs font-semibold text-neutral-600 hover:text-[#c2410c] transition cursor-pointer"
-                      title="翻看下一本官方精选"
-                    >
-                      <span className="hidden sm:inline text-[10px] text-neutral-400 font-normal">
-                        ({SAMPLE_BOOKS[(sampleCarouselIndex + 1) % SAMPLE_BOOKS.length].title.split("(")[0].trim().slice(0, 8)})
-                      </span>
-                      <span>下一本</span>
-                      <span className="flex h-5 w-5 items-center justify-center rounded-full bg-white border border-[#f0e6d4] shadow-2xs group-hover:border-[#ff6b2c]/60 group-hover:bg-[#fff4ee] text-[10px]">›</span>
-                    </button>
+                    {/* 下排：胶囊翻页按钮与导览珍珠 */}
+                    <div className="flex items-center justify-between gap-2 pt-1 border-t border-[#f0e6d4]/50">
+                      <button
+                        type="button"
+                        onClick={prevSample}
+                        className="group inline-flex items-center gap-1 rounded-xl border border-[#e5ded4] bg-white px-2.5 py-1 text-xs font-semibold text-neutral-700 shadow-2xs hover:border-[#ff6b2c]/60 hover:bg-[#fff8f3] hover:text-[#c2410c] transition cursor-pointer active:scale-95 shrink-0"
+                        title="翻看上一首"
+                      >
+                        <span className="text-[11px] font-bold text-neutral-400 group-hover:text-[#c2410c]">‹</span>
+                        <span>上一本</span>
+                      </button>
+
+                      {/* 珍珠导览点 */}
+                      <div className="flex items-center gap-1 overflow-x-auto max-w-[140px] sm:max-w-none px-1 py-0.5">
+                        {SAMPLE_BOOKS.map((b, i) => (
+                          <button
+                            key={b.id}
+                            type="button"
+                            onClick={() => {
+                              setSampleCarouselIndex(i);
+                              applySampleBook(SAMPLE_BOOKS[i]);
+                            }}
+                            className={`transition-all duration-300 rounded-full cursor-pointer shrink-0 ${
+                              sampleCarouselIndex === i
+                                ? "h-2 w-4 bg-[#ff6b2c]"
+                                : "h-1.5 w-1.5 bg-[#f0e6d4] hover:bg-orange-300"
+                            }`}
+                            title={b.title}
+                            aria-label={`翻到第 ${i + 1} 本：${b.title}`}
+                          />
+                        ))}
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={nextSample}
+                        className="group inline-flex items-center gap-1 rounded-xl border border-[#e5ded4] bg-white px-2.5 py-1 text-xs font-semibold text-neutral-700 shadow-2xs hover:border-[#ff6b2c]/60 hover:bg-[#fff8f3] hover:text-[#c2410c] transition cursor-pointer active:scale-95 shrink-0"
+                        title="翻看下一首"
+                      >
+                        <span>下一本</span>
+                        <span className="text-[11px] font-bold text-neutral-400 group-hover:text-[#c2410c]">›</span>
+                      </button>
+                    </div>
                   </div>
                 ) : null}
 
@@ -1785,30 +1908,31 @@ export default function HomePage() {
                     </button>
                   </div>
                 ) : null}
-                <div className="flex items-center justify-between gap-1.5 pt-2">
-                  {/* 左侧：重画（纯净柔白微边） */}
+                {/* 操作栏：自适应弹性包装，手机端横向排版防溢出 */}
+                <div className="flex items-center justify-between gap-1.5 pt-2 flex-wrap sm:flex-nowrap">
+                  {/* 左侧：重画 */}
                   <div className="flex-shrink-0">
                     <button
                       type="button"
                       disabled={jobBusy || isPrinting || isColoring}
                       onClick={onNewGenerate}
-                      className="inline-flex items-center justify-center gap-1 rounded-xl border border-[#e5ded4] bg-white px-2.5 h-8.5 text-xs font-semibold text-neutral-700 transition hover:border-[#ff6b2c]/60 hover:bg-[#fff7f2] hover:text-[#c2410c] shadow-2xs disabled:opacity-50 whitespace-nowrap"
+                      className="inline-flex items-center justify-center gap-1 rounded-xl border border-[#e5ded4] bg-white px-2.5 h-8.5 text-xs font-semibold text-neutral-700 transition hover:border-[#ff6b2c]/60 hover:bg-[#fff7f2] hover:text-[#c2410c] shadow-2xs disabled:opacity-50 whitespace-nowrap active:scale-95"
                       title="保留当前歌词，换个构图重画一张"
                     >
-                      <span aria-hidden>🔄</span>
+                      <RefreshIcon className="w-3.5 h-3.5 text-neutral-500" />
                       <span>重画</span>
                     </button>
                   </div>
 
-                  {/* 右侧：五大交付与互动项（100%平权柔白设计，绝不抢画作焦点） */}
-                  <div className="flex items-center gap-1.5 flex-shrink-0">
-                    {/* 1. 存为 PDF（回归工具箱平权设计） */}
+                  {/* 右侧：五大交付与互动项（支持移动端横向平滑滚动防撑开） */}
+                  <div className="flex items-center gap-1.5 overflow-x-auto max-w-full pb-0.5 sm:pb-0 scrollbar-none">
+                    {/* 1. 存为 PDF */}
                     <button
                       type="button"
                       disabled={isPrinting || isColoring}
                       onClick={() => void onDownloadPdf()}
-                      className="inline-flex items-center justify-center gap-1 rounded-xl border border-[#e5ded4] bg-white px-2.5 h-8.5 text-xs font-semibold text-neutral-700 transition hover:border-[#ff6b2c]/60 hover:bg-[#fff7f2] hover:text-[#c2410c] shadow-2xs disabled:opacity-50 whitespace-nowrap"
-                      title="直接静默下载标准的 A4 PDF 文件，专为打印贴墙设计"
+                      className="inline-flex items-center justify-center gap-1 rounded-xl border border-[#e5ded4] bg-white px-2.5 h-8.5 text-xs font-semibold text-neutral-700 transition hover:border-[#ff6b2c]/60 hover:bg-[#fff7f2] hover:text-[#c2410c] shadow-2xs disabled:opacity-50 whitespace-nowrap shrink-0 active:scale-95"
+                      title="直接下载标准的 A4 PDF 文件，专为打印贴墙设计"
                     >
                       {isPrinting ? (
                         <>
@@ -1817,7 +1941,7 @@ export default function HomePage() {
                         </>
                       ) : (
                         <>
-                          <span aria-hidden>📄</span>
+                          <PdfFileIcon className="w-3.5 h-3.5 text-neutral-500" />
                           <span>存为 PDF</span>
                         </>
                       )}
@@ -1828,10 +1952,10 @@ export default function HomePage() {
                       type="button"
                       disabled={isPrinting || isColoring}
                       onClick={() => void onPrintA4()}
-                      className="inline-flex items-center justify-center gap-1 rounded-xl border border-[#e5ded4] bg-white px-2.5 h-8.5 text-xs font-semibold text-neutral-700 transition hover:border-[#ff6b2c]/60 hover:bg-[#fff7f2] hover:text-[#c2410c] shadow-2xs disabled:opacity-50 whitespace-nowrap"
+                      className="inline-flex items-center justify-center gap-1 rounded-xl border border-[#e5ded4] bg-white px-2.5 h-8.5 text-xs font-semibold text-neutral-700 transition hover:border-[#ff6b2c]/60 hover:bg-[#fff7f2] hover:text-[#c2410c] shadow-2xs disabled:opacity-50 whitespace-nowrap shrink-0 active:scale-95"
                       title="调起系统打印机即刻出纸"
                     >
-                      <span aria-hidden>🖨️</span>
+                      <PrintIcon className="w-3.5 h-3.5 text-neutral-500" />
                       <span>打印</span>
                     </button>
 
@@ -1840,10 +1964,10 @@ export default function HomePage() {
                       type="button"
                       disabled={isPrinting || isColoring}
                       onClick={onDownload}
-                      className="inline-flex items-center justify-center gap-1 rounded-xl border border-[#e5ded4] bg-white px-2.5 h-8.5 text-xs font-semibold text-neutral-700 transition hover:border-[#ff6b2c]/60 hover:bg-[#fff7f2] hover:text-[#c2410c] shadow-2xs disabled:opacity-50 whitespace-nowrap"
+                      className="inline-flex items-center justify-center gap-1 rounded-xl border border-[#e5ded4] bg-white px-2.5 h-8.5 text-xs font-semibold text-neutral-700 transition hover:border-[#ff6b2c]/60 hover:bg-[#fff7f2] hover:text-[#c2410c] shadow-2xs disabled:opacity-50 whitespace-nowrap shrink-0 active:scale-95"
                       title="下载高清绘本图片 (PNG)"
                     >
-                      <span aria-hidden>🖼️</span>
+                      <ImageIcon className="w-3.5 h-3.5 text-neutral-500" />
                       <span>存图</span>
                     </button>
 
@@ -1852,7 +1976,7 @@ export default function HomePage() {
                       type="button"
                       disabled={isPrinting || isColoring}
                       onClick={() => void onDownloadColoring()}
-                      className={`inline-flex items-center justify-center gap-1 rounded-xl border px-2.5 h-8.5 text-xs font-semibold shadow-2xs disabled:opacity-50 whitespace-nowrap transition ${
+                      className={`inline-flex items-center justify-center gap-1 rounded-xl border px-2.5 h-8.5 text-xs font-semibold shadow-2xs disabled:opacity-50 whitespace-nowrap shrink-0 transition active:scale-95 ${
                         coloringSuccess
                           ? "border-emerald-300 bg-emerald-50 text-emerald-700 font-bold"
                           : "border-[#e5ded4] bg-white text-neutral-700 hover:border-[#ff6b2c]/60 hover:bg-[#fff7f2] hover:text-[#c2410c]"
@@ -1871,7 +1995,7 @@ export default function HomePage() {
                         </>
                       ) : (
                         <>
-                          <span aria-hidden>✏️</span>
+                          <PencilIcon className="w-3.5 h-3.5 text-neutral-500" />
                           <span>涂色卡</span>
                         </>
                       )}
@@ -1881,10 +2005,10 @@ export default function HomePage() {
                     <button
                       type="button"
                       onClick={() => setShowTip(true)}
-                      className="inline-flex items-center justify-center gap-1 rounded-xl border border-[#e5ded4] bg-white px-2.5 h-8.5 text-xs font-semibold text-neutral-700 transition hover:border-[#ff6b2c]/60 hover:bg-[#fff7f2] hover:text-[#c2410c] shadow-2xs whitespace-nowrap"
+                      className="inline-flex items-center justify-center gap-1 rounded-xl border border-[#e5ded4] bg-white px-2.5 h-8.5 text-xs font-semibold text-neutral-700 transition hover:border-[#ff6b2c]/60 hover:bg-[#fff7f2] hover:text-[#c2410c] shadow-2xs whitespace-nowrap shrink-0 active:scale-95"
                       title="喜欢歌绘可以打赏请作者喝杯奶茶哦～"
                     >
-                      <span aria-hidden>🧋</span>
+                      <TeaCupIcon className="w-3.5 h-3.5" />
                       <span>打赏</span>
                     </button>
                   </div>
@@ -1937,9 +2061,10 @@ export default function HomePage() {
         </aside>
       </div>
 
-      <footer className="mt-10 space-y-1 text-center text-xs text-neutral-400">
-        <p>歌绘 · 一页启蒙绘本</p>
-        <p>适合睡前、英语角，或打印贴在墙上一起唱。</p>
+      {/* 底部居中文案（预留底部安全边距，避免被右下角浮钮遮挡视线） */}
+      <footer className="mt-12 mb-6 w-full text-center px-4 space-y-1">
+        <p className="text-xs text-neutral-400 font-medium">歌绘 · 一页启蒙绘本</p>
+        <p className="text-xs text-neutral-400">适合睡前、英语角，或打印贴在墙上一起唱。</p>
       </footer>
 
       {/* 右下角智能抽屉呼吸按钮：平时微呼吸圆钮，悬停丝滑展开文字，离开收缩 */}
@@ -1951,9 +2076,9 @@ export default function HomePage() {
           aria-label="请杯奶茶"
           title="喜欢歌绘可以请作者喝杯奶茶哦～"
         >
-          {/* 图标与轻柔微呼吸动效 */}
-          <span className="text-xl transition-transform duration-300 group-hover:scale-110 group-hover:rotate-6" aria-hidden>
-            🧋
+          {/* 图标与轻柔微呼吸动效（SVG矢量，全平台不乱码） */}
+          <span className="transition-transform duration-300 group-hover:scale-110 group-hover:rotate-6 flex items-center" aria-hidden>
+            <TeaCupIcon className="w-5 h-5" />
           </span>
 
           {/* 抽屉文字：默认宽度为0溢出隐藏，悬停时平滑展开 */}
@@ -2118,7 +2243,9 @@ export default function HomePage() {
 
             {/* 顶部标题与亲切微提示 */}
             <div className="pt-1">
-              <span className="inline-block text-3xl mb-1.5 animate-bounce" aria-hidden>🧋</span>
+              <span className="inline-flex items-center justify-center p-2 rounded-2xl bg-orange-50 mb-1.5 animate-bounce" aria-hidden>
+                <TeaCupIcon className="w-8 h-8" />
+              </span>
               <h3 className="font-display text-lg font-bold text-neutral-800">
                 请作者喝杯奶茶
               </h3>
