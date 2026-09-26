@@ -6,10 +6,46 @@ export const ADMIN_FIXED_PASSWORD = "3099520";
 const ADMIN_COOKIE_NAME = "ge_hui_admin_token";
 const TOKEN_MAX_AGE_SECONDS = 7 * 24 * 60 * 60; // 7 days
 
+export type PricingConfig = {
+  price: string;
+  originalPrice: string;
+  promoTag: string;
+};
+
+export type ModelPoolConfig = {
+  freeModels: string[];
+  proModels: string[];
+  defaultFree: string;
+  defaultPro: string;
+};
+
 export type AdminConfig = {
+  pricing?: PricingConfig;
+  chatPool?: ModelPoolConfig;
+  imagePool?: ModelPoolConfig;
   defaultChatModel?: string;
   defaultImageModel?: string;
   updatedAt?: string;
+};
+
+export const DEFAULT_PRICING: PricingConfig = {
+  price: "6.6",
+  originalPrice: "29.9",
+  promoTag: "限时特惠",
+};
+
+export const DEFAULT_CHAT_POOL: ModelPoolConfig = {
+  freeModels: ["gemini-3.8-flash-high", "gemini-3.1-pro-low", "glm-5.3", "grok-4.6"],
+  proModels: ["gpt-6-astra", "gpt-5.6-sol", "gpt-5.5"],
+  defaultFree: "gemini-3.8-flash-high",
+  defaultPro: "gpt-6-astra",
+};
+
+export const DEFAULT_IMAGE_POOL: ModelPoolConfig = {
+  freeModels: ["gemini-3.1-flash-image"],
+  proModels: ["gpt-image-2.5", "gpt-image-2", "gpt-image-1.5"],
+  defaultFree: "gemini-3.1-flash-image",
+  defaultPro: "gpt-image-2.5",
 };
 
 function adminConfigFile(): string {
@@ -64,7 +100,29 @@ export function verifyAdminPassword(password?: string | null): boolean {
 }
 
 export async function getAdminConfig(): Promise<AdminConfig> {
-  return readJsonFile<AdminConfig>(adminConfigFile(), () => ({}));
+  const config = await readJsonFile<AdminConfig>(adminConfigFile(), () => ({}));
+  return {
+    pricing: {
+      price: config.pricing?.price || DEFAULT_PRICING.price,
+      originalPrice: config.pricing?.originalPrice || DEFAULT_PRICING.originalPrice,
+      promoTag: config.pricing?.promoTag || DEFAULT_PRICING.promoTag,
+    },
+    chatPool: {
+      freeModels: config.chatPool?.freeModels?.length ? config.chatPool.freeModels : DEFAULT_CHAT_POOL.freeModels,
+      proModels: config.chatPool?.proModels?.length ? config.chatPool.proModels : DEFAULT_CHAT_POOL.proModels,
+      defaultFree: config.chatPool?.defaultFree || DEFAULT_CHAT_POOL.defaultFree,
+      defaultPro: config.chatPool?.defaultPro || DEFAULT_CHAT_POOL.defaultPro,
+    },
+    imagePool: {
+      freeModels: config.imagePool?.freeModels?.length ? config.imagePool.freeModels : DEFAULT_IMAGE_POOL.freeModels,
+      proModels: config.imagePool?.proModels?.length ? config.imagePool.proModels : DEFAULT_IMAGE_POOL.proModels,
+      defaultFree: config.imagePool?.defaultFree || DEFAULT_IMAGE_POOL.defaultFree,
+      defaultPro: config.imagePool?.defaultPro || DEFAULT_IMAGE_POOL.defaultPro,
+    },
+    defaultChatModel: config.defaultChatModel || config.chatPool?.defaultFree || DEFAULT_CHAT_POOL.defaultFree,
+    defaultImageModel: config.defaultImageModel || config.imagePool?.defaultFree || DEFAULT_IMAGE_POOL.defaultFree,
+    updatedAt: config.updatedAt,
+  };
 }
 
 export async function saveAdminConfig(patch: Partial<AdminConfig>): Promise<AdminConfig> {

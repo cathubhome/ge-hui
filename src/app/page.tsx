@@ -276,6 +276,11 @@ export default function HomePage() {
   const [freeSites, setFreeSites] = useState<FreeSite[]>([]);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [modelsLoading, setModelsLoading] = useState(true);
+  const [pricing, setPricing] = useState<{ price: string; originalPrice: string; promoTag: string }>({
+    price: "6.6",
+    originalPrice: "29.9",
+    promoTag: "限时特惠",
+  });
   const [characterDescription, setCharacterDescription] = useState("");
   const [roleScope, setRoleScope] = useState<"default" | "solo" | "all">("default");
   const [artStyle, setArtStyle] = useState<"default" | "crayon" | "clay">("default");
@@ -800,11 +805,19 @@ export default function HomePage() {
       try {
         const res = await fetch("/api/models");
         const data = (await res.json()) as {
+          pricing?: { price?: string; originalPrice?: string; promoTag?: string };
           chatModels?: ModelOption[];
           imageModels?: ModelOption[];
           freeTranscriptionSites?: FreeSite[];
           defaults?: { chat?: string; image?: string };
         };
+        if (data.pricing?.price) {
+          setPricing({
+            price: data.pricing.price || "6.6",
+            originalPrice: data.pricing.originalPrice || "29.9",
+            promoTag: data.pricing.promoTag || "限时特惠",
+          });
+        }
         setChatModels(data.chatModels ?? []);
         setImageModels(data.imageModels ?? []);
         setFreeSites(data.freeTranscriptionSites ?? []);
@@ -2191,7 +2204,7 @@ export default function HomePage() {
                         </span>
                       </div>
                       <span className="rounded-full bg-[#ff6b2c] text-white px-2.5 py-0.5 text-[10px] font-bold shadow-2xs group-hover:bg-[#ef5a1a] transition shrink-0 ml-1">
-                        6.6元解锁 ➔
+                        {pricing.price}元解锁 ➔
                       </span>
                     </div>
                     <p className="mt-1 text-[11px] text-neutral-500 leading-relaxed pl-6.5">
@@ -2327,7 +2340,7 @@ export default function HomePage() {
                   >
                     <span className="flex items-center gap-1.5 truncate">
                       <span>👑</span>
-                      <span className="truncate">当前导出为标准挂画。开通创作包可点亮右下角【扫码微点读伴唱码】</span>
+                      <span className="truncate">当前导出为标准挂画。开通 {pricing.price} 元创作包可点亮右下角【扫码微点读伴唱码】</span>
                     </span>
                     <span className="text-[11px] font-bold text-[#c2410c] shrink-0 underline">
                       去解锁 ➔
@@ -2542,12 +2555,21 @@ export default function HomePage() {
             {/* 路径 1：人工微信发卡 */}
             <div className="mt-4 rounded-2xl border border-orange-200/80 bg-orange-50/70 p-3.5 text-left">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-neutral-800 flex items-center gap-1">
-                  <span>⚡</span> 支持者创作包 · 6.6 元
+                <span className="text-xs font-bold text-neutral-800 flex items-center gap-1.5">
+                  <span>⚡</span>
+                  <span>支持者创作包 · {pricing.price} 元</span>
+                  {pricing.originalPrice ? (
+                    <span className="text-[10px] text-neutral-400 line-through font-normal">¥{pricing.originalPrice}</span>
+                  ) : null}
                 </span>
-                <span className="rounded-full bg-[#ff6b2c] px-2 py-0.5 text-[10px] font-bold text-white">
-                  20次 / 90天
-                </span>
+                <div className="flex items-center gap-1">
+                  <span className="rounded-full bg-orange-100 text-[#c2410c] px-2 py-0.5 text-[10px] font-bold border border-orange-200">
+                    {pricing.promoTag || "限时特惠"}
+                  </span>
+                  <span className="rounded-full bg-[#ff6b2c] px-2 py-0.5 text-[10px] font-bold text-white">
+                    20次 / 90天
+                  </span>
+                </div>
               </div>
               <p className="mt-1.5 text-[11px] text-neutral-600 leading-relaxed">
                 扫码添加作者微信（<strong>牵猫散步的鱼</strong>），付款后将为您<strong>人工发送专属一客一码卡密</strong>：

@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { ADMIN_COOKIE_NAME, getAdminConfig, saveAdminConfig, verifyAdminToken, type AdminConfig } from "@/lib/admin-settings";
+import { ADMIN_COOKIE_NAME, getAdminConfig, saveAdminConfig, verifyAdminToken, type AdminConfig, type PricingConfig, type ModelPoolConfig } from "@/lib/admin-settings";
 import { dataRoot, readJsonFile } from "@/lib/json-store";
 import path from "node:path";
-import { chatModels, imageModel } from "@/lib/cpa";
 
 export const runtime = "nodejs";
 
@@ -13,7 +12,7 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const config: AdminConfig = await getAdminConfig().catch(() => ({}));
+    const config: AdminConfig = await getAdminConfig();
 
     // Read statistics
     const accessStoreFile = path.join(dataRoot(), "access-store.json");
@@ -37,11 +36,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      config: {
-        defaultChatModel: config.defaultChatModel || chatModels()[0],
-        defaultImageModel: config.defaultImageModel || imageModel(),
-        updatedAt: config.updatedAt,
-      },
+      config,
       stats: {
         totalRedeemedCodes: totalRedeemed,
         todayActiveDevices,
@@ -61,18 +56,53 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const body = await req.json().catch(() => ({}));
-    const defaultChatModel = body.defaultChatModel ? String(body.defaultChatModel).trim() : undefined;
-    const defaultImageModel = body.defaultImageModel ? String(body.defaultImageModel).trim() : undefined;
+    const body = (await req.json().catch(() => ({}))) as {
+      pricing?: Partial<PricingConfig>;
+      chatPool?: Partial<ModelPoolConfig>;
+      imagePool?: Partial<ModelPoolConfig>;
+      defaultChatModel?: string;
+      defaultImageModel?: string;
+    };
 
-    const updated = await saveAdminConfig({
-      defaultChatModel,
-      defaultImageModel,
-    });
+    const patch: Partial<AdminConfig> = {};
+
+    if (body.pricing) {
+      patch.pricing = {
+        price: String(body.pricing.price || "6.6").trim(),
+        originalPrice: String(body.pricing.originalPrice || "29.9").trim(),
+        promoTag: String(body.pricing.promoTag || "限时特惠").trim(),
+      };
+    }
+
+    if (body.chatPool) {
+      patch.chatPool = {
+        freeModels: Array.isArray(body.chatPool.freeModels) ? body.chatPool.freeModels : [],
+        proModels: Array.isArray(body.chatPool.proModels) ? body.chatPool.proModels : [],
+        defaultFree: String(body.chatPool.defaultFree || "gemini-3.8-flash-high").trim(),
+        defaultPro: String(body.chatPool.defaultPro || "gpt-6-astra").trim(),
+      };
+      patch.defaultChatModel = patch.chatPool.defaultFree;
+    } else if (body.defaultChatModel) {
+      patch.defaultChatModel = String(body.defaultChatModel).trim();
+    }
+
+    if (body.imagePool) {
+      patch.imagePool = {
+        freeModels: Array.isArray(body.imagePool.freeModels) ? body.imagePool.freeModels : [],
+        proModels: Array.isArray(body.imagePool.proModels) ? body.imagePool.proModels : [],
+        defaultFree: String(body.imagePool.defaultFree || "gemini-3.1-flash-image").trim(),
+        defaultPro: String(body.imagePool.defaultPro || "gpt-image-2.5").trim(),
+      };
+      patch.defaultImageModel = patch.imagePool.defaultFree;
+    } else if (body.defaultImageModel) {
+      patch.defaultImageModel = String(body.defaultImageModel).trim();
+    }
+
+    const updated = await saveAdminConfig(patch);
 
     return NextResponse.json({
       success: true,
-      message: "模型首选项配置已更新生效",
+      message: "控制台配置（定价与多模型池）已更新生效",
       config: updated,
     });
   } catch (error) {

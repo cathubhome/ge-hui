@@ -1,4 +1,10 @@
-export type ModelOption = { id: string; label: string; hint?: string; isPro?: boolean };
+export type ModelOption = {
+  id: string;
+  label: string;
+  shortLabel?: string;
+  hint?: string;
+  isPro?: boolean;
+};
 
 export type ModelFamily = "gemini" | "gpt" | "glm" | "grok" | "other";
 
@@ -14,22 +20,14 @@ export function detectFamily(id: string): ModelFamily {
   return "other";
 }
 
-function prettyLabel(id: string): string {
-  return id
-    .split("/")
-    .pop()!
-    .replace(/-/g, " ")
-    .replace(/\b\w/g, (c) => c.toUpperCase());
-}
-
 /** Higher = better / prefer earlier within a family. Unknown ids get 0. */
 export const CHAT_RANK: Record<string, number> = {
   "gemini-3.8-flash-high": 100,
   "gemini-3.1-pro-low": 90,
-  "gpt-6-astra": 110, // 👑 Pro 专享 · OpenAI 顶尖对话分镜构思大模型
-  "gpt-5.6-sol": 105, // 👑 Pro 专享 · OpenAI 旗舰大模型
-  "gpt-5.6-terra": 95, // 👑 Pro 专享
-  "gpt-5.5": 85, // 👑 Pro 专享
+  "gpt-6-astra": 110,
+  "gpt-5.6-sol": 105,
+  "gpt-5.6-terra": 95,
+  "gpt-5.5": 85,
   "glm-5.3": 100,
   "grok-4.6": 100,
 };
@@ -41,16 +39,15 @@ export const PRO_CHAT_MODELS = [
   "gpt-5.5",
 ];
 
-/** Listening / scene-planning models shown in Advanced settings. */
 export const CHAT_ALLOWLIST = Object.keys(CHAT_RANK);
 
 export const IMAGE_RANK: Record<string, number> = {
-  "gemini-3.1-flash-image": 120, // Google 原生多模态极速绘本出图 · 默认推荐
-  "gpt-image-2.5-sunburst": 115, // 👑 Pro 专享 · 殿堂级原画
-  "gpt-image-2.5-flare": 110, // 👑 Pro 专享 · 细腻原画
-  "gpt-image-2.5": 105, // 👑 Pro 专享 · 经典超清原画
-  "gpt-image-2": 95, // 👑 Pro 专享 · 经典原画
-  "gpt-image-1.5": 80, // 👑 Pro 专享 · 轻量原画
+  "gemini-3.1-flash-image": 120,
+  "gpt-image-2.5-sunburst": 115,
+  "gpt-image-2.5-flare": 110,
+  "gpt-image-2.5": 105,
+  "gpt-image-2": 95,
+  "gpt-image-1.5": 80,
   "grok-imagine-image-quality": 90,
   "grok-imagine-image-2.0": 85,
   "grok-imagine-image": 75,
@@ -65,6 +62,31 @@ export const PRO_IMAGE_MODELS = [
   "grok-imagine-image-quality",
 ];
 
+/**
+ * 将技术模型代号映射为儿童绘本通俗艺术分档与画师标签
+ */
+const CHAT_FRIENDLY_LABELS: Record<string, { label: string; hint?: string }> = {
+  "gemini-3.8-flash-high": { label: "🌱 欢快童话编排 (极速构思 · 推荐)", hint: "推荐" },
+  "gemini-3.1-pro-low": { label: "🌿 温润生活小剧本 (生动细腻)", hint: "温润" },
+  "glm-5.3": { label: "📚 启蒙韵律童谣 (通俗易懂)", hint: "启蒙" },
+  "grok-4.6": { label: "🎠 趣味故事工坊 (机灵幽默)", hint: "趣味" },
+  "gpt-6-astra": { label: "👑 顶级名家分镜大师 (Pro 专享 · 殿堂级)", hint: "👑 殿堂" },
+  "gpt-5.6-sol": { label: "👑 国际双语名作构思 (Pro 专享 · 旗舰)", hint: "👑 旗舰" },
+  "gpt-5.6-terra": { label: "👑 深度自然启蒙剧作 (Pro 专享)", hint: "👑 Pro" },
+  "gpt-5.5": { label: "👑 经典绘本戏剧工坊 (Pro 专享)", hint: "👑 Pro" },
+};
+
+const IMAGE_FRIENDLY_LABELS: Record<string, { label: string; hint?: string }> = {
+  "gemini-3.1-flash-image": { label: "🎨 启蒙标清画师 (极速出画 · 优先推荐)", hint: "极速推荐" },
+  "gpt-image-2.5": { label: "👑 4K 印刷级超清原画师 (Pro 专享 · 殿堂级)", hint: "👑 殿堂原画" },
+  "gpt-image-2": { label: "👑 经典童画温润原画师 (Pro 专享)", hint: "👑 Pro" },
+  "gpt-image-1.5": { label: "👑 轻盈绘本水彩画师 (Pro 专享)", hint: "👑 Pro" },
+  "gpt-image-2.5-sunburst": { label: "👑 阳光复古绘本原画师 (Pro 专享)", hint: "👑 阳光复古" },
+  "gpt-image-2.5-flare": { label: "👑 梦幻光影绘本画师 (Pro 专享)", hint: "👑 梦幻光影" },
+  "grok-imagine-image-quality": { label: "👑 萌趣高质感插画师 (Pro 专享)", hint: "👑 Pro" },
+  "grok-imagine-image-2.0": { label: "🎨 奇趣卡通造形画师", hint: "卡通" },
+};
+
 export function isChatCapable(id: string): boolean {
   return CHAT_ALLOWLIST.includes(id);
 }
@@ -72,7 +94,6 @@ export function isChatCapable(id: string): boolean {
 export function isImageCapable(id: string): boolean {
   const s = id.toLowerCase();
   if (s.includes("video")) return false;
-  // Gemini 3.1 Flash Image 支持多模态 Chat 生图
   if (s.includes("gemini") && s.includes("image")) return true;
   if (s.includes("gpt-image")) return true;
   if (s.includes("grok-imagine-image")) return true;
@@ -80,37 +101,24 @@ export function isImageCapable(id: string): boolean {
 }
 
 export function toOption(id: string, kind: "chat" | "image"): ModelOption {
-  const rank = kind === "chat" ? CHAT_RANK[id] : IMAGE_RANK[id];
-  let hint = rank && rank >= 90 ? "推荐" : undefined;
-  let label = prettyLabel(id);
   const isPro = kind === "chat" ? PRO_CHAT_MODELS.includes(id) : PRO_IMAGE_MODELS.includes(id);
+  const friendlyMap = kind === "chat" ? CHAT_FRIENDLY_LABELS : IMAGE_FRIENDLY_LABELS;
+  const match = friendlyMap[id];
 
-  if (kind === "image") {
-    if (id === "gemini-3.1-flash-image") {
-      label = "Gemini 3.1 Flash Image (极速光影 · 优先推荐)";
-      hint = "极速";
-    } else if (id === "gpt-image-2.5") {
-      label = "GPT Image 2.5 (👑 Pro 专享 · 殿堂级原画)";
-      hint = "👑 Pro 殿堂";
-    } else if (id === "gpt-image-2") {
-      label = "GPT Image 2 (👑 Pro 专享 · 经典原画)";
-      hint = "👑 Pro 经典";
-    } else if (isPro) {
-      label = `${label} (👑 Pro 专享)`;
-      hint = "👑 Pro";
-    }
-  } else if (kind === "chat") {
-    if (id === "gpt-6-astra") {
-      label = "GPT-6 Astra (👑 Pro 专享 · 顶尖构思)";
-      hint = "👑 Pro 顶尖";
-    } else if (id === "gpt-5.6-sol") {
-      label = "GPT-5.6 Sol (👑 Pro 专享 · 旗舰)";
-      hint = "👑 Pro 旗舰";
-    } else if (isPro) {
-      label = `${label} (👑 Pro 专享)`;
-      hint = "👑 Pro";
-    }
+  if (match) {
+    return {
+      id,
+      label: match.label,
+      hint: match.hint,
+      isPro,
+    };
   }
+
+  // Fallback for unknown dynamic models
+  const rank = kind === "chat" ? CHAT_RANK[id] : IMAGE_RANK[id];
+  const hint = rank && rank >= 90 ? "推荐" : isPro ? "👑 Pro" : undefined;
+  const rawTitle = id.split("/").pop()!.replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+  const label = isPro ? `${rawTitle} (👑 Pro 专享)` : rawTitle;
 
   return { id, label, hint, isPro };
 }

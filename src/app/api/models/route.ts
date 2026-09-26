@@ -50,10 +50,11 @@ export async function GET() {
   const imageIds = sortModelIds(allImageIds, "image");
 
   // 管理员后台配置 > 环境变量配置 > 默认排位首位
-  const preferredChat = adminConfig.defaultChatModel || chatModels()[0];
-  const preferredImage = adminConfig.defaultImageModel || imageModel();
+  const preferredChat = adminConfig.chatPool?.defaultFree || adminConfig.defaultChatModel || chatModels()[0];
+  const preferredImage = adminConfig.imagePool?.defaultFree || adminConfig.defaultImageModel || imageModel();
 
   return NextResponse.json({
+    pricing: adminConfig.pricing,
     defaults: {
       chat: pickDefault(chatIds, preferredChat),
       image: pickDefault(imageIds, preferredImage),

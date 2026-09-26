@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import type { ModelOption } from "@/lib/model-options";
+import type { PricingConfig, ModelPoolConfig, AdminConfig } from "@/lib/admin-settings";
 
 type GeneratedCodeItem = {
   code: string;
@@ -27,13 +28,33 @@ export default function AdminPage() {
   const [generatedList, setGeneratedList] = useState<GeneratedCodeItem[]>([]);
   const [codeFeedback, setCodeFeedback] = useState("");
 
+  // Pricing settings state
+  const [pricing, setPricing] = useState<PricingConfig>({
+    price: "6.6",
+    originalPrice: "29.9",
+    promoTag: "限时特惠",
+  });
+  const [isSavingPricing, setIsSavingPricing] = useState(false);
+  const [pricingFeedback, setPricingFeedback] = useState("");
+
   // Model settings state
   const [chatModels, setChatModels] = useState<ModelOption[]>([]);
   const [imageModels, setImageModels] = useState<ModelOption[]>([]);
-  const [selectedChat, setSelectedChat] = useState("");
-  const [selectedImage, setSelectedImage] = useState("");
-  const [isSavingSettings, setIsSavingSettings] = useState(false);
-  const [settingsFeedback, setSettingsFeedback] = useState("");
+  const [chatPool, setChatPool] = useState<ModelPoolConfig>({
+    freeModels: ["gemini-3.8-flash-high", "gemini-3.1-pro-low", "glm-5.3", "grok-4.6"],
+    proModels: ["gpt-6-astra", "gpt-5.6-sol", "gpt-5.5"],
+    defaultFree: "gemini-3.8-flash-high",
+    defaultPro: "gpt-6-astra",
+  });
+  const [imagePool, setImagePool] = useState<ModelPoolConfig>({
+    freeModels: ["gemini-3.1-flash-image"],
+    proModels: ["gpt-image-2.5", "gpt-image-2", "gpt-image-1.5"],
+    defaultFree: "gemini-3.1-flash-image",
+    defaultPro: "gpt-image-2.5",
+  });
+
+  const [isSavingModels, setIsSavingModels] = useState(false);
+  const [modelsFeedback, setModelsFeedback] = useState("");
 
   // Stats
   const [stats, setStats] = useState<AdminStats | null>(null);
@@ -71,10 +92,11 @@ export default function AdminPage() {
       }
 
       if (settingsRes.ok) {
-        const sData = await settingsRes.json();
+        const sData = (await settingsRes.json()) as { config?: AdminConfig; stats?: AdminStats };
         if (sData.config) {
-          setSelectedChat(sData.config.defaultChatModel || "");
-          setSelectedImage(sData.config.defaultImageModel || "");
+          if (sData.config.pricing) setPricing(sData.config.pricing);
+          if (sData.config.chatPool) setChatPool(sData.config.chatPool);
+          if (sData.config.imagePool) setImagePool(sData.config.imagePool);
         }
         if (sData.stats) {
           setStats(sData.stats);
@@ -138,7 +160,7 @@ export default function AdminPage() {
       if (!res.ok) throw new Error(data.error || "生成失败");
 
       setGeneratedList(data.items || []);
-      setCodeFeedback(`✓ 成功生成 ${data.count} 枚一客一码激活卡密！`);
+      setCodeFeedback(`✓ 成功生成 ${data.count} 枚一客一码防伪卡密！`);
     } catch (err) {
       setCodeFeedback(err instanceof Error ? err.message : "生成卡密出错");
     } finally {
@@ -146,29 +168,52 @@ export default function AdminPage() {
     }
   }
 
-  // Save Model Settings
-  async function handleSaveSettings() {
-    if (isSavingSettings) return;
-    setIsSavingSettings(true);
-    setSettingsFeedback("");
+  // Save Pricing Settings
+  async function handleSavePricing() {
+    if (isSavingPricing) return;
+    setIsSavingPricing(true);
+    setPricingFeedback("");
+
+    try {
+      const res = await fetch("/api/admin/settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pricing }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "保存价格失败");
+      setPricingFeedback("✓ 定价策略已更新，全站弹窗与卡片已即时同步！");
+      setTimeout(() => setPricingFeedback(""), 3500);
+    } catch (err) {
+      setPricingFeedback(err instanceof Error ? err.message : "保存失败");
+    } finally {
+      setIsSavingPricing(false);
+    }
+  }
+
+  // Save Model Pools Settings
+  async function handleSaveModels() {
+    if (isSavingModels) return;
+    setIsSavingModels(true);
+    setModelsFeedback("");
 
     try {
       const res = await fetch("/api/admin/settings", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          defaultChatModel: selectedChat,
-          defaultImageModel: selectedImage,
+          chatPool,
+          imagePool,
         }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "保存配置失败");
-      setSettingsFeedback("✓ 模型首选项配置已更新，全站即时生效！");
-      setTimeout(() => setSettingsFeedback(""), 3500);
+      if (!res.ok) throw new Error(data.error || "保存模型池配置失败");
+      setModelsFeedback("✓ 多模型池调度策略已保存，全站即时生效！");
+      setTimeout(() => setModelsFeedback(""), 3500);
     } catch (err) {
-      setSettingsFeedback(err instanceof Error ? err.message : "保存失败");
+      setModelsFeedback(err instanceof Error ? err.message : "保存失败");
     } finally {
-      setIsSavingSettings(false);
+      setIsSavingModels(false);
     }
   }
 
@@ -188,6 +233,35 @@ export default function AdminPage() {
     copyText(all, "全部卡密及链接");
   }
 
+  // Helper toggle for pools
+  function toggleModelInPool(
+    poolType: "chat" | "image",
+    tier: "free" | "pro",
+    modelId: string
+  ) {
+    if (poolType === "chat") {
+      setChatPool((prev) => {
+        const key = tier === "free" ? "freeModels" : "proModels";
+        const currentList = prev[key] || [];
+        const exists = currentList.includes(modelId);
+        const nextList = exists
+          ? currentList.filter((id) => id !== modelId)
+          : [...currentList, modelId];
+        return { ...prev, [key]: nextList };
+      });
+    } else {
+      setImagePool((prev) => {
+        const key = tier === "free" ? "freeModels" : "proModels";
+        const currentList = prev[key] || [];
+        const exists = currentList.includes(modelId);
+        const nextList = exists
+          ? currentList.filter((id) => id !== modelId)
+          : [...currentList, modelId];
+        return { ...prev, [key]: nextList };
+      });
+    }
+  }
+
   // Loading state
   if (isAuthenticated === null) {
     return (
@@ -200,7 +274,7 @@ export default function AdminPage() {
     );
   }
 
-  // Login Screen (Password Protected)
+  // Login Screen (Password Protected & Desensitized)
   if (!isAuthenticated) {
     return (
       <main className="flex min-h-screen items-center justify-center bg-[#f7f3e8] p-4 font-sans text-neutral-800">
@@ -221,7 +295,7 @@ export default function AdminPage() {
               autoFocus
               value={passwordInput}
               onChange={(e) => setPasswordInput(e.target.value)}
-              placeholder="请输入固定密码（3099520）"
+              placeholder="请输入管理员密码"
               className="w-full rounded-xl border border-[#f0e6d4] bg-[#fffdf8] px-3 py-2.5 text-center text-base tracking-widest outline-none ring-[#ff6b2c]/40 focus:ring-2 font-mono"
             />
             {loginError ? (
@@ -269,7 +343,7 @@ export default function AdminPage() {
                 </span>
               </h1>
               <p className="text-xs text-neutral-400">
-                卡密一键发行 · 多设备共享 · 顶级 GPT/Gemini 模型调度
+                卡密发行 · 动态定价策略 · 多模型池灵活调度
               </p>
             </div>
           </div>
@@ -310,7 +384,83 @@ export default function AdminPage() {
           </div>
         ) : null}
 
-        {/* Section 1: Activation Codes Issuance Workbench */}
+        {/* Section 1: Pricing & Limited-Time Promotion Config */}
+        <section className="rounded-3xl border border-[#f0e6d4] bg-white p-5 sm:p-6 shadow-xs space-y-4">
+          <div className="flex items-center justify-between border-b border-[#f0e6d4]/60 pb-3">
+            <div>
+              <h2 className="font-display text-lg font-bold text-neutral-900 flex items-center gap-1.5">
+                <span>🏷️</span>
+                <span>创作包定价与限时特惠配置</span>
+              </h2>
+              <p className="text-xs text-neutral-500 mt-0.5">
+                在此设置前台弹窗与卡片展示的售价、划线原价及促销角标（全站即时自动同步）
+              </p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div>
+              <label className="block text-xs font-bold text-neutral-700 mb-1">
+                限时特惠售价（元）：
+              </label>
+              <input
+                type="text"
+                value={pricing.price}
+                onChange={(e) => setPricing((p) => ({ ...p, price: e.target.value }))}
+                placeholder="例如 6.6 或 9.9"
+                className="w-full rounded-xl border border-[#f0e6d4] bg-[#fffdf8] px-3 py-2 text-sm font-bold text-[#c2410c] outline-none ring-[#ff6b2c]/40 focus:ring-1"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-neutral-700 mb-1">
+                展示划线原价（元）：
+              </label>
+              <input
+                type="text"
+                value={pricing.originalPrice}
+                onChange={(e) => setPricing((p) => ({ ...p, originalPrice: e.target.value }))}
+                placeholder="例如 29.9"
+                className="w-full rounded-xl border border-[#f0e6d4] bg-[#fffdf8] px-3 py-2 text-sm text-neutral-500 line-through outline-none ring-[#ff6b2c]/40 focus:ring-1"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-neutral-700 mb-1">
+                活动促销标签：
+              </label>
+              <input
+                type="text"
+                value={pricing.promoTag}
+                onChange={(e) => setPricing((p) => ({ ...p, promoTag: e.target.value }))}
+                placeholder="例如 限时特惠 / 开学季特惠"
+                className="w-full rounded-xl border border-[#f0e6d4] bg-[#fffdf8] px-3 py-2 text-sm text-neutral-800 outline-none ring-[#ff6b2c]/40 focus:ring-1"
+              />
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between pt-1">
+            <span className="text-[11px] text-neutral-400">
+              * 修改后点击右侧保存，前台用户打开弹窗和升级条将直接呈现新价格
+            </span>
+            <button
+              type="button"
+              onClick={handleSavePricing}
+              disabled={isSavingPricing}
+              className="inline-flex items-center gap-1.5 rounded-xl bg-[#ff6b2c] hover:bg-[#ef5a1a] px-4 py-1.5 text-xs font-bold text-white shadow-2xs transition active:scale-95 disabled:opacity-50 cursor-pointer"
+            >
+              {isSavingPricing ? "正在保存…" : "💾 保存价格策略"}
+            </button>
+          </div>
+
+          {pricingFeedback ? (
+            <p className={pricingFeedback.includes("✓") ? "text-xs font-semibold text-emerald-700 animate-in fade-in" : "text-xs font-semibold text-rose-600"}>
+              {pricingFeedback}
+            </p>
+          ) : null}
+        </section>
+
+        {/* Section 2: Activation Codes Issuance Workbench */}
         <section className="rounded-3xl border border-[#f0e6d4] bg-white p-5 sm:p-6 shadow-xs space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#f0e6d4]/60 pb-3">
             <div>
@@ -438,59 +588,179 @@ export default function AdminPage() {
           ) : null}
         </section>
 
-        {/* Section 2: Model Scheduling & Pro Privilege Config */}
+        {/* Section 3: Multi-Model Pools Scheduling & Pro Privileges Config */}
         <section className="rounded-3xl border border-[#f0e6d4] bg-white p-5 sm:p-6 shadow-xs space-y-5">
           <div className="border-b border-[#f0e6d4]/60 pb-3">
             <h2 className="font-display text-lg font-bold text-neutral-900 flex items-center gap-1.5">
               <span>🤖</span>
-              <span>模型调度中心 · 首选模型与 Pro 专享配置</span>
+              <span>多模型池调度中心 · 免费池与 Pro 专享池灵活配置</span>
             </h2>
             <p className="text-xs text-neutral-500 mt-0.5">
-              在此配置全站默认的构思与出图画师模型，带 👑 标记的模型为支持者 Pro 专享
+              在此自由勾选免费通道与 Pro 专享通道包含的多个模型，并指定各通道的默认首选
             </p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* Chat/Planning Model Config */}
-            <div className="rounded-2xl border border-[#f0e6d4] bg-[#fffdf8] p-4 space-y-2">
-              <label className="block text-xs font-bold text-neutral-800">
-                1. 默认【谁来听歌想画面】模型：
-              </label>
-              <select
-                value={selectedChat}
-                onChange={(e) => setSelectedChat(e.target.value)}
-                className="w-full rounded-xl border border-[#f0e6d4] bg-white px-3 py-2 text-xs font-medium text-neutral-800 outline-none ring-[#ff6b2c]/40 focus:ring-1"
-              >
-                {chatModels.map((m) => (
-                  <option key={m.id} value={m.id}>
-                    {m.label} {m.isPro ? "★ [Pro专享]" : ""}
-                  </option>
-                ))}
-              </select>
-              <p className="text-[11px] text-neutral-400">
-                负责儿歌歌词意图理解、场景分镜头拆解与中英文台词构思
-              </p>
+          {/* 1. Chat/Planning Pool */}
+          <div className="rounded-2xl border border-[#f0e6d4] bg-[#fffdf8] p-4 space-y-4">
+            <div className="flex items-center justify-between border-b border-[#f0e6d4]/50 pb-2">
+              <span className="text-xs font-bold text-neutral-800 flex items-center gap-1">
+                <span>📝</span> 【谁来听歌想画面】多模型池配置
+              </span>
+              <span className="text-[10px] text-neutral-400">负责歌词理解与分镜头构思</span>
             </div>
 
-            {/* Image Model Config */}
-            <div className="rounded-2xl border border-[#f0e6d4] bg-[#fffdf8] p-4 space-y-2">
-              <label className="block text-xs font-bold text-neutral-800">
-                2. 默认【谁来画画】出图画师：
-              </label>
-              <select
-                value={selectedImage}
-                onChange={(e) => setSelectedImage(e.target.value)}
-                className="w-full rounded-xl border border-[#f0e6d4] bg-white px-3 py-2 text-xs font-medium text-neutral-800 outline-none ring-[#ff6b2c]/40 focus:ring-1"
-              >
-                {imageModels.map((m) => (
-                  <option key={m.id} value={m.id}>
-                    {m.label} {m.isPro ? "★ [Pro专享]" : ""}
-                  </option>
-                ))}
-              </select>
-              <p className="text-[11px] text-neutral-400">
-                推荐 Gemini 3.1 Flash Image（极速出画），Pro 专享可选 GPT Image 2.5
-              </p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Free Chat Pool */}
+              <div className="space-y-2 border border-neutral-200/70 rounded-xl bg-white p-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-emerald-800">🌱 免费通道模型池（多选）：</span>
+                  <span className="text-[10px] text-neutral-400">已选 {chatPool.freeModels.length} 个</span>
+                </div>
+                <div className="space-y-1.5 max-h-40 overflow-y-auto pr-1">
+                  {chatModels.map((m) => (
+                    <label key={m.id} className="flex items-center gap-2 text-xs text-neutral-700 cursor-pointer hover:bg-neutral-50 p-1 rounded-lg">
+                      <input
+                        type="checkbox"
+                        checked={chatPool.freeModels.includes(m.id)}
+                        onChange={() => toggleModelInPool("chat", "free", m.id)}
+                        className="rounded text-[#ff6b2c] focus:ring-[#ff6b2c]"
+                      />
+                      <span className="truncate">{m.label}</span>
+                    </label>
+                  ))}
+                </div>
+                <div className="pt-2 border-t border-neutral-100 flex items-center gap-1.5">
+                  <span className="text-[11px] font-semibold text-neutral-600 shrink-0">默认首选：</span>
+                  <select
+                    value={chatPool.defaultFree}
+                    onChange={(e) => setChatPool((p) => ({ ...p, defaultFree: e.target.value }))}
+                    className="w-full rounded-lg border border-[#f0e6d4] bg-white px-2 py-1 text-xs"
+                  >
+                    {chatPool.freeModels.map((id) => (
+                      <option key={id} value={id}>
+                        {chatModels.find((m) => m.id === id)?.label || id}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* Pro Chat Pool */}
+              <div className="space-y-2 border border-orange-200/70 rounded-xl bg-white p-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-[#c2410c]">👑 Pro 专享模型池（多选）：</span>
+                  <span className="text-[10px] text-neutral-400">已选 {chatPool.proModels.length} 个</span>
+                </div>
+                <div className="space-y-1.5 max-h-40 overflow-y-auto pr-1">
+                  {chatModels.map((m) => (
+                    <label key={m.id} className="flex items-center gap-2 text-xs text-neutral-700 cursor-pointer hover:bg-orange-50/50 p-1 rounded-lg">
+                      <input
+                        type="checkbox"
+                        checked={chatPool.proModels.includes(m.id)}
+                        onChange={() => toggleModelInPool("chat", "pro", m.id)}
+                        className="rounded text-[#ff6b2c] focus:ring-[#ff6b2c]"
+                      />
+                      <span className="truncate">{m.label}</span>
+                    </label>
+                  ))}
+                </div>
+                <div className="pt-2 border-t border-neutral-100 flex items-center gap-1.5">
+                  <span className="text-[11px] font-semibold text-neutral-600 shrink-0">默认首选：</span>
+                  <select
+                    value={chatPool.defaultPro}
+                    onChange={(e) => setChatPool((p) => ({ ...p, defaultPro: e.target.value }))}
+                    className="w-full rounded-lg border border-[#f0e6d4] bg-white px-2 py-1 text-xs"
+                  >
+                    {chatPool.proModels.map((id) => (
+                      <option key={id} value={id}>
+                        {chatModels.find((m) => m.id === id)?.label || id}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* 2. Image Pool */}
+          <div className="rounded-2xl border border-[#f0e6d4] bg-[#fffdf8] p-4 space-y-4">
+            <div className="flex items-center justify-between border-b border-[#f0e6d4]/50 pb-2">
+              <span className="text-xs font-bold text-neutral-800 flex items-center gap-1">
+                <span>🎨</span> 【谁来画画】画师模型池配置
+              </span>
+              <span className="text-[10px] text-neutral-400">负责儿童绘本插画与原画生成</span>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Free Image Pool */}
+              <div className="space-y-2 border border-neutral-200/70 rounded-xl bg-white p-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-emerald-800">🌱 免费画师池（多选）：</span>
+                  <span className="text-[10px] text-neutral-400">已选 {imagePool.freeModels.length} 个</span>
+                </div>
+                <div className="space-y-1.5 max-h-40 overflow-y-auto pr-1">
+                  {imageModels.map((m) => (
+                    <label key={m.id} className="flex items-center gap-2 text-xs text-neutral-700 cursor-pointer hover:bg-neutral-50 p-1 rounded-lg">
+                      <input
+                        type="checkbox"
+                        checked={imagePool.freeModels.includes(m.id)}
+                        onChange={() => toggleModelInPool("image", "free", m.id)}
+                        className="rounded text-[#ff6b2c] focus:ring-[#ff6b2c]"
+                      />
+                      <span className="truncate">{m.label}</span>
+                    </label>
+                  ))}
+                </div>
+                <div className="pt-2 border-t border-neutral-100 flex items-center gap-1.5">
+                  <span className="text-[11px] font-semibold text-neutral-600 shrink-0">默认首选：</span>
+                  <select
+                    value={imagePool.defaultFree}
+                    onChange={(e) => setImagePool((p) => ({ ...p, defaultFree: e.target.value }))}
+                    className="w-full rounded-lg border border-[#f0e6d4] bg-white px-2 py-1 text-xs"
+                  >
+                    {imagePool.freeModels.map((id) => (
+                      <option key={id} value={id}>
+                        {imageModels.find((m) => m.id === id)?.label || id}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* Pro Image Pool */}
+              <div className="space-y-2 border border-orange-200/70 rounded-xl bg-white p-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-[#c2410c]">👑 Pro 专享画师池（多选）：</span>
+                  <span className="text-[10px] text-neutral-400">已选 {imagePool.proModels.length} 个</span>
+                </div>
+                <div className="space-y-1.5 max-h-40 overflow-y-auto pr-1">
+                  {imageModels.map((m) => (
+                    <label key={m.id} className="flex items-center gap-2 text-xs text-neutral-700 cursor-pointer hover:bg-orange-50/50 p-1 rounded-lg">
+                      <input
+                        type="checkbox"
+                        checked={imagePool.proModels.includes(m.id)}
+                        onChange={() => toggleModelInPool("image", "pro", m.id)}
+                        className="rounded text-[#ff6b2c] focus:ring-[#ff6b2c]"
+                      />
+                      <span className="truncate">{m.label}</span>
+                    </label>
+                  ))}
+                </div>
+                <div className="pt-2 border-t border-neutral-100 flex items-center gap-1.5">
+                  <span className="text-[11px] font-semibold text-neutral-600 shrink-0">默认首选：</span>
+                  <select
+                    value={imagePool.defaultPro}
+                    onChange={(e) => setImagePool((p) => ({ ...p, defaultPro: e.target.value }))}
+                    className="w-full rounded-lg border border-[#f0e6d4] bg-white px-2 py-1 text-xs"
+                  >
+                    {imagePool.proModels.map((id) => (
+                      <option key={id} value={id}>
+                        {imageModels.find((m) => m.id === id)?.label || id}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -500,17 +770,17 @@ export default function AdminPage() {
             </span>
             <button
               type="button"
-              onClick={handleSaveSettings}
-              disabled={isSavingSettings}
+              onClick={handleSaveModels}
+              disabled={isSavingModels}
               className="inline-flex items-center gap-1.5 rounded-xl bg-neutral-900 hover:bg-black px-5 py-2 text-xs font-bold text-white shadow-xs transition active:scale-95 disabled:opacity-50 cursor-pointer"
             >
-              {isSavingSettings ? "正在保存…" : "💾 保存模型调度配置"}
+              {isSavingModels ? "正在保存…" : "💾 保存多模型池调度配置"}
             </button>
           </div>
 
-          {settingsFeedback ? (
-            <p className={settingsFeedback.includes("✓") ? "text-xs font-semibold text-emerald-700 animate-in fade-in" : "text-xs font-semibold text-rose-600"}>
-              {settingsFeedback}
+          {modelsFeedback ? (
+            <p className={modelsFeedback.includes("✓") ? "text-xs font-semibold text-emerald-700 animate-in fade-in" : "text-xs font-semibold text-rose-600"}>
+              {modelsFeedback}
             </p>
           ) : null}
         </section>
