@@ -81,8 +81,8 @@ CPA_CHAT_FALLBACK_MODEL=glm-5.3
 # 音频听写（Gemini 多模态）
 CPA_TRANSCRIBE_MODEL=gemini-3.8-flash-high
 
-# AI 图像生成模型（推荐 gpt-image-2.5 或 gpt-image-2）
-CPA_IMAGE_MODEL=gpt-image-2.5
+# AI 图像生成模型（推荐 gemini-3.1-flash-image，备选 gpt-image-2.5）
+CPA_IMAGE_MODEL=gemini-3.1-flash-image
 
 # 创作包激活码签名密钥（生产必填，至少 32 字符随机字符串）
 ACTIVATION_CODE_SECRET=replace-with-at-least-32-chars-random-secret
