@@ -16,7 +16,8 @@ type UiStep = "idle" | "working" | "done";
 type ModelOption = {
   id: string;
   label: string;
-  group: "chat" | "image";
+  group?: "chat" | "image";
+  isPro?: boolean;
 };
 
 type FreeSite = {
@@ -1794,14 +1795,24 @@ export default function HomePage() {
           {showAdvanced ? (
             <div className="paper-card mt-3 grid gap-3 rounded-2xl p-4 sm:grid-cols-2">
               <div>
-                <label className="text-xs font-medium text-neutral-600">
-                  谁来听歌想画面
-                </label>
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-medium text-neutral-600">
+                    谁来听歌想画面
+                  </label>
+                  <span className="text-[10px] text-orange-600 font-medium">👑 Pro 享顶尖构思</span>
+                </div>
                 <select
                   className="mt-1 w-full rounded-lg border border-[#f0e6d4] bg-white px-2 py-2 text-sm disabled:opacity-60"
                   value={chatModel}
                   disabled={jobBusy}
-                  onChange={(e) => setChatModel(e.target.value)}
+                  onChange={(e) => {
+                    const chosen = e.target.value;
+                    setChatModel(chosen);
+                    const opt = chatModels.find(m => m.id === chosen);
+                    if (opt?.isPro && (quota?.paidRemaining ?? 0) <= 0) {
+                      setShowQuotaModal(true);
+                    }
+                  }}
                 >
                   {chatModels.map((m) => (
                     <option key={m.id} value={m.id}>
@@ -2558,20 +2569,28 @@ export default function HomePage() {
               </div>
 
               {/* 支持者核心特权清单 */}
-              <div className="mt-2.5 rounded-xl bg-orange-100/70 p-2 text-[11px] text-neutral-700 space-y-1">
+              <div className="mt-2.5 rounded-xl bg-orange-100/70 p-2.5 text-[11px] text-neutral-700 space-y-1">
                 <p className="font-bold text-[#c2410c] flex items-center gap-1">
                   <span>👑</span>
-                  <span>支持者四大核心特权：</span>
+                  <span>支持者专属五大核心特权：</span>
                 </p>
-                <p className="flex items-center gap-1 text-[11px] text-neutral-700">
+                <p className="flex items-center gap-1.5 text-[11px] text-neutral-700">
+                  <span className="text-emerald-600 font-bold">✓</span>
+                  <span>解锁 <strong>OpenAI GPT 殿堂级画师</strong>（GPT Image 2.5 超清出图）</span>
+                </p>
+                <p className="flex items-center gap-1.5 text-[11px] text-neutral-700">
+                  <span className="text-emerald-600 font-bold">✓</span>
+                  <span>解锁 <strong>GPT-6 Astra / GPT-5.6</strong> 顶尖分镜构思大模型</span>
+                </p>
+                <p className="flex items-center gap-1.5 text-[11px] text-neutral-700">
                   <span className="text-emerald-600 font-bold">✓</span>
                   <span>自制绘本点亮<strong>【纸上微点读码】</strong>（微信扫码即唱）</span>
                 </p>
-                <p className="flex items-center gap-1 text-[11px] text-neutral-700">
+                <p className="flex items-center gap-1.5 text-[11px] text-neutral-700">
                   <span className="text-emerald-600 font-bold">✓</span>
                   <span>增加 <strong>20 次</strong>专属绘本生成额度（90天超长有效）</span>
                 </p>
-                <p className="flex items-center gap-1 text-[11px] text-neutral-700">
+                <p className="flex items-center gap-1.5 text-[11px] text-neutral-700">
                   <span className="text-emerald-600 font-bold">✓</span>
                   <span>支持最多 <strong>3 台常用设备</strong>无缝同步（手机/电脑共享）</span>
                 </p>

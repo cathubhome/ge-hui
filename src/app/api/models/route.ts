@@ -16,6 +16,7 @@ import {
   chatModels,
   imageModel,
 } from "@/lib/cpa";
+import { getAdminConfig, type AdminConfig } from "@/lib/admin-settings";
 
 export const runtime = "nodejs";
 
@@ -37,28 +38,20 @@ async function fetchLiveModelIds(): Promise<Set<string> | null> {
 
 export async function GET() {
   const live = await fetchLiveModelIds();
+  const adminConfig: AdminConfig = await getAdminConfig().catch(() => ({}));
 
-  let chatIds: string[];
-  let imageIds: string[];
+  // 并集机制：保证系统实测支持的高阶 GPT 和出图画师全部稳定呈现，同时收纳网关探测到的最新模型
+  const liveChat = live ? [...live].filter(isChatCapable) : [];
+  const allChatIds = Array.from(new Set([...CHAT_MODEL_CANDIDATES, ...liveChat]));
+  const chatIds = sortModelIds(allChatIds, "chat");
 
-  if (live) {
-    // Live catalog is source of truth: only show currently available models.
-    chatIds = sortModelIds([...live].filter(isChatCapable), "chat");
-    imageIds = sortModelIds([...live].filter(isImageCapable), "image");
-  } else {
-    // Offline fallback: curated candidates only (may briefly include stale ids).
-    chatIds = sortModelIds(
-      CHAT_MODEL_CANDIDATES.filter(isChatCapable),
-      "chat",
-    );
-    imageIds = sortModelIds(
-      IMAGE_MODEL_CANDIDATES.filter(isImageCapable),
-      "image",
-    );
-  }
+  const liveImage = live ? [...live].filter(isImageCapable) : [];
+  const allImageIds = Array.from(new Set([...IMAGE_MODEL_CANDIDATES, ...liveImage]));
+  const imageIds = sortModelIds(allImageIds, "image");
 
-  const preferredChat = chatModels()[0];
-  const preferredImage = imageModel();
+  // 管理员后台配置 > 环境变量配置 > 默认排位首位
+  const preferredChat = adminConfig.defaultChatModel || chatModels()[0];
+  const preferredImage = adminConfig.defaultImageModel || imageModel();
 
   return NextResponse.json({
     defaults: {
