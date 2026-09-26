@@ -312,66 +312,62 @@ export default function HomePage() {
     applySampleBook(SAMPLE_BOOKS[nextIdx]);
   }, [sampleCarouselIndex]);
 
-  // 静默预加载当前绘本音频（进入展厅或切歌时提前缓冲，实现秒点秒响）
+  // 初始化并维护全局音频播放器（仅在切换曲目时换源，绝不因播放状态反复触发重置）
   useEffect(() => {
-    const currentSample = SAMPLE_BOOKS[sampleCarouselIndex];
-    if (!currentSample?.sampleAudio) return;
+    if (typeof window === "undefined") return;
 
     if (!audioPlayerRef.current) {
       const audio = new Audio();
       audio.preload = "auto";
       audioPlayerRef.current = audio;
+
+      audio.onplaying = () => {
+        setIsAudioLoading(false);
+        setIsPlayingAudio(true);
+      };
+      audio.onwaiting = () => {
+        if (!audio.paused) setIsAudioLoading(true);
+      };
+      audio.oncanplay = () => {
+        setIsAudioLoading(false);
+      };
+      audio.onended = () => {
+        setIsPlayingAudio(false);
+        setIsAudioLoading(false);
+      };
+      audio.onerror = () => {
+        setIsPlayingAudio(false);
+        setIsAudioLoading(false);
+      };
     }
 
     const player = audioPlayerRef.current;
-    const targetSrc = window.location.origin + currentSample.sampleAudio;
-    if (player.src !== targetSrc) {
-      if (isPlayingAudio) {
-        player.pause();
-        setIsPlayingAudio(false);
-      }
+    const currentSample = SAMPLE_BOOKS[sampleCarouselIndex];
+    if (!currentSample?.sampleAudio) {
+      player.pause();
+      setIsPlayingAudio(false);
       setIsAudioLoading(false);
-      player.src = currentSample.sampleAudio;
+      return;
+    }
+
+    const fullTargetUrl = new URL(currentSample.sampleAudio, window.location.origin).href;
+    if (player.src !== fullTargetUrl) {
+      player.pause();
+      setIsPlayingAudio(false);
+      setIsAudioLoading(false);
+      player.src = fullTargetUrl;
       player.load();
     }
-  }, [sampleCarouselIndex, isPlayingAudio]);
+  }, [sampleCarouselIndex]);
 
-  // 绑定原生音频事件，精确掌控播放与缓冲状态
+  // 组件卸载时安全释放音频
   useEffect(() => {
-    const player = audioPlayerRef.current;
-    if (!player) return;
-
-    const onPlaying = () => {
-      setIsAudioLoading(false);
-      setIsPlayingAudio(true);
-    };
-    const onWaiting = () => {
-      if (!player.paused) setIsAudioLoading(true);
-    };
-    const onCanPlay = () => {
-      setIsAudioLoading(false);
-    };
-    const onEnded = () => {
-      setIsPlayingAudio(false);
-      setIsAudioLoading(false);
-    };
-    const onError = () => {
-      setIsPlayingAudio(false);
-      setIsAudioLoading(false);
-    };
-
-    player.addEventListener("playing", onPlaying);
-    player.addEventListener("waiting", onWaiting);
-    player.addEventListener("canplay", onCanPlay);
-    player.addEventListener("ended", onEnded);
-    player.addEventListener("error", onError);
-
     return () => {
-      player.removeEventListener("playing", onPlaying);
-      player.removeEventListener("waiting", onWaiting);
-      player.removeEventListener("canplay", onCanPlay);
-      player.removeEventListener("ended", onEnded);
-      player.removeEventListener("error", onError);
+      if (audioPlayerRef.current) {
+        audioPlayerRef.current.pause();
+        audioPlayerRef.current.src = "";
+        audioPlayerRef.current = null;
+      }
     };
   }, []);
 
