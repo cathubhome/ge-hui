@@ -63,8 +63,20 @@ export function isImageCapable(id: string): boolean {
 
 export function toOption(id: string, kind: "chat" | "image"): ModelOption {
   const rank = kind === "chat" ? CHAT_RANK[id] : IMAGE_RANK[id];
-  const hint = rank && rank >= 90 ? "推荐" : undefined;
-  return { id, label: prettyLabel(id), hint };
+  let hint = rank && rank >= 90 ? "推荐" : undefined;
+  let label = prettyLabel(id);
+
+  if (kind === "image") {
+    if (id === "gemini-3.1-flash-image") {
+      label = "Gemini 3.1 Flash Image (极速出画 · 优先推荐)";
+      hint = "极速";
+    } else if (id.includes("2.5")) {
+      label = `${label} (👑 Pro 超清原画)`;
+      hint = "👑 Pro";
+    }
+  }
+
+  return { id, label, hint };
 }
 
 export function sortModelIds(ids: string[], kind: "chat" | "image"): string[] {

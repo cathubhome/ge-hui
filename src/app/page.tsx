@@ -1710,19 +1710,27 @@ export default function HomePage() {
 
             {/* 画面风格 */}
             <div className="mt-3">
-              <p className="text-[11px] font-medium text-neutral-500 mb-1.5">画面质感</p>
+              <div className="flex items-center justify-between mb-1.5">
+                <p className="text-[11px] font-medium text-neutral-500">画面质感</p>
+                <span className="text-[10px] text-orange-600/80 font-medium">👑 Pro 风格专享超清艺术触感</span>
+              </div>
               <div className="flex flex-wrap gap-2">
                 {[
-                  { id: "default", label: "绘本原画 (默认)" },
-                  { id: "crayon", label: "蜡笔童趣风" },
-                  { id: "clay", label: "立体彩泥/剪纸" },
+                  { id: "default", label: "绘本原画 (免费)", isPro: false },
+                  { id: "crayon", label: "蜡笔童趣风 👑", isPro: true },
+                  { id: "clay", label: "立体彩泥/剪纸 👑", isPro: true },
                 ].map((item) => (
                   <button
                     key={item.id}
                     type="button"
                     disabled={jobBusy}
-                    onClick={() => setArtStyle(item.id as "default" | "crayon" | "clay")}
-                    className={`rounded-lg px-2.5 py-1 text-xs font-semibold transition ${
+                    onClick={() => {
+                      setArtStyle(item.id as "default" | "crayon" | "clay");
+                      if (item.isPro && (quota?.paidRemaining ?? 0) <= 0) {
+                        setShowQuotaModal(true);
+                      }
+                    }}
+                    className={`rounded-lg px-2.5 py-1 text-xs font-semibold transition cursor-pointer active:scale-95 ${
                       artStyle === item.id
                         ? "border border-orange-300/90 bg-orange-50/90 text-orange-900 font-bold shadow-2xs"
                         : "border border-[#f0e6d4] bg-white text-neutral-600 hover:border-[#ff6b2c]/40 hover:bg-[#fff4ee]/50"
@@ -1803,12 +1811,21 @@ export default function HomePage() {
                 </select>
               </div>
               <div>
-                <label className="text-xs font-medium text-neutral-600">谁来画画</label>
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-medium text-neutral-600">谁来画画</label>
+                  <span className="text-[10px] text-orange-600 font-medium">👑 Pro 享超清原画</span>
+                </div>
                 <select
                   className="mt-1 w-full rounded-lg border border-[#f0e6d4] bg-white px-2 py-2 text-sm disabled:opacity-60"
                   value={imageModel}
                   disabled={jobBusy}
-                  onChange={(e) => setImageModel(e.target.value)}
+                  onChange={(e) => {
+                    const chosen = e.target.value;
+                    setImageModel(chosen);
+                    if (chosen.includes("2.5") && (quota?.paidRemaining ?? 0) <= 0) {
+                      setShowQuotaModal(true);
+                    }
+                  }}
                 >
                   {imageModels.map((m) => (
                     <option key={m.id} value={m.id}>
@@ -2146,6 +2163,31 @@ export default function HomePage() {
                     </div>
                   ) : null}
                 </div>
+
+                {/* 自制绘本结果区：免费用户的画质与微点读码尊享对比升级卡 */}
+                {!isSampleMode && (quota?.paidRemaining ?? 0) <= 0 ? (
+                  <div
+                    onClick={() => setShowQuotaModal(true)}
+                    className="rounded-2xl border border-orange-200/90 bg-gradient-to-r from-[#fff9f4] via-[#fff4ec] to-[#fef6ee] p-3 text-left shadow-2xs cursor-pointer hover:border-[#ff6b2c]/60 transition group active:scale-[0.99]"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[#ff6b2c] text-white text-[10px] font-bold shrink-0">
+                          👑
+                        </span>
+                        <span className="text-xs font-bold text-neutral-800 group-hover:text-[#c2410c] transition truncate">
+                          升级 4K 印刷级原画 + 点亮专属扫码点读码
+                        </span>
+                      </div>
+                      <span className="rounded-full bg-[#ff6b2c] text-white px-2.5 py-0.5 text-[10px] font-bold shadow-2xs group-hover:bg-[#ef5a1a] transition shrink-0 ml-1">
+                        6.6元解锁 ➔
+                      </span>
+                    </div>
+                    <p className="mt-1 text-[11px] text-neutral-500 leading-relaxed pl-6.5">
+                      当前为标清预览。开通支持者创作包，即享超清原画重绘、纯净无水印打印，并赋予纸上海报微信扫码即唱能力～
+                    </p>
+                  </div>
+                ) : null}
 
                 {/* 样板模式专属：沉浸式翻书导览栏（置于大画正下方） */}
                 {isSampleMode ? (
