@@ -1180,7 +1180,7 @@ export default function HomePage() {
 
   function getListenUrl(): string | undefined {
     if (typeof window === "undefined") return undefined;
-    // 1. 官方精选样板模式：仅当该官方绘本具备对应原声音频时，生成官方经典伴唱播放二维码
+    // 1. 官方精选样板模式：保留官方原声音频二维码（作为免费体验钩子与口碑招牌）
     if (isSampleMode) {
       const sample = SAMPLE_BOOKS[sampleCarouselIndex];
       if (sample && sample.sampleAudio) {
@@ -1188,11 +1188,12 @@ export default function HomePage() {
       }
       return undefined;
     }
-    // 2. 自定义创作模式：仅当用户真正上传并压缩了音频时才生成专属伴唱码
-    if (audioId) {
+    // 2. 自定义自制绘本模式：仅限付费支持者（拥有付费创作包余额 paidRemaining > 0 且带音频）生成专属纸上微点读码
+    const isSupporter = (quota?.paidRemaining ?? 0) > 0;
+    if (audioId && isSupporter) {
       return `${window.location.origin}/p/${audioId}`;
     }
-    // 3. 纯文本歌词/纯绘本抽词无音频：严格返回 undefined，画布引擎优雅绘制亲子启蒙徽章，杜绝无效死码
+    // 3. 免费普通用户自制绘本，或纯文字无音频创作：严格返回 undefined，画布引擎优雅绘制亲子启蒙纪念印章
     return undefined;
   }
 
@@ -2264,6 +2265,23 @@ export default function HomePage() {
                     </button>
                   </div>
                 ) : null}
+
+                {/* 免费用户自制音频绘本：提示点读码特权 */}
+                {!isSampleMode && audioId && (quota?.paidRemaining ?? 0) <= 0 ? (
+                  <div
+                    onClick={() => setShowQuotaModal(true)}
+                    className="flex items-center justify-between rounded-xl border border-amber-200/90 bg-amber-50/80 px-3 py-2 text-xs text-amber-900 cursor-pointer hover:bg-amber-100/80 transition"
+                  >
+                    <span className="flex items-center gap-1.5 truncate">
+                      <span>👑</span>
+                      <span className="truncate">当前导出为标准挂画。开通创作包可点亮右下角【扫码微点读伴唱码】</span>
+                    </span>
+                    <span className="text-[11px] font-bold text-[#c2410c] shrink-0 underline">
+                      去解锁 ➔
+                    </span>
+                  </div>
+                ) : null}
+
                 {/* 操作栏：手机端自适应两排网格（3列+3列完整可见、绝不横向溢出），电脑端单排展示 */}
                 <div className="grid grid-cols-3 gap-2 pt-2 sm:flex sm:items-center sm:justify-between sm:gap-1.5">
                   {/* 1. 重画 */}
@@ -2494,6 +2512,26 @@ export default function HomePage() {
                 </p>
                 <p className="mt-0.5 text-[10px] text-neutral-400">
                   人工核对后发送激活卡密，遇到使用问题也可随时联系作者
+                </p>
+              </div>
+
+              {/* 支持者核心特权清单 */}
+              <div className="mt-2.5 rounded-xl bg-orange-100/70 p-2 text-[11px] text-neutral-700 space-y-1">
+                <p className="font-bold text-[#c2410c] flex items-center gap-1">
+                  <span>👑</span>
+                  <span>支持者四大核心特权：</span>
+                </p>
+                <p className="flex items-center gap-1 text-[11px] text-neutral-700">
+                  <span className="text-emerald-600 font-bold">✓</span>
+                  <span>自制绘本点亮<strong>【纸上微点读码】</strong>（微信扫码即唱）</span>
+                </p>
+                <p className="flex items-center gap-1 text-[11px] text-neutral-700">
+                  <span className="text-emerald-600 font-bold">✓</span>
+                  <span>增加 <strong>20 次</strong>专属绘本生成额度（90天超长有效）</span>
+                </p>
+                <p className="flex items-center gap-1 text-[11px] text-neutral-700">
+                  <span className="text-emerald-600 font-bold">✓</span>
+                  <span>支持最多 <strong>3 台常用设备</strong>无缝同步（手机/电脑共享）</span>
                 </p>
               </div>
 
