@@ -616,29 +616,39 @@ export default function AdminPage() {
                   <span className="text-xs font-bold text-emerald-800">🌱 免费通道模型池（多选）：</span>
                   <span className="text-[10px] text-neutral-400">已选 {chatPool.freeModels.length} 个</span>
                 </div>
-                <div className="space-y-1.5 max-h-40 overflow-y-auto pr-1">
+                <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
                   {chatModels.map((m) => (
-                    <label key={m.id} className="flex items-center gap-2 text-xs text-neutral-700 cursor-pointer hover:bg-neutral-50 p-1 rounded-lg">
+                    <label key={m.id} className="flex items-start gap-2 text-xs text-neutral-700 cursor-pointer hover:bg-neutral-50 p-1.5 rounded-xl border border-neutral-100 transition">
                       <input
                         type="checkbox"
                         checked={chatPool.freeModels.includes(m.id)}
                         onChange={() => toggleModelInPool("chat", "free", m.id)}
-                        className="rounded text-[#ff6b2c] focus:ring-[#ff6b2c]"
+                        className="rounded text-[#ff6b2c] focus:ring-[#ff6b2c] mt-0.5"
                       />
-                      <span className="truncate">{m.label}</span>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="font-mono font-bold text-neutral-900 text-[11px] bg-neutral-100 px-1.5 py-0.5 rounded">
+                            {m.id}
+                          </span>
+                          <span className={`text-[10px] px-1.5 rounded font-bold ${m.provider === 'google' ? 'bg-blue-50 text-blue-700 border border-blue-200' : 'bg-emerald-50 text-emerald-700 border border-emerald-200'}`}>
+                            {m.provider === 'google' ? 'Google' : 'OpenAI'}
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-neutral-500 truncate mt-0.5">{m.label}</p>
+                      </div>
                     </label>
                   ))}
                 </div>
                 <div className="pt-2 border-t border-neutral-100 flex items-center gap-1.5">
-                  <span className="text-[11px] font-semibold text-neutral-600 shrink-0">默认首选：</span>
+                  <span className="text-[11px] font-semibold text-neutral-600 shrink-0">默认首选原模型：</span>
                   <select
                     value={chatPool.defaultFree}
                     onChange={(e) => setChatPool((p) => ({ ...p, defaultFree: e.target.value }))}
-                    className="w-full rounded-lg border border-[#f0e6d4] bg-white px-2 py-1 text-xs"
+                    className="w-full rounded-lg border border-[#f0e6d4] bg-white px-2 py-1 text-xs font-mono"
                   >
                     {chatPool.freeModels.map((id) => (
                       <option key={id} value={id}>
-                        {chatModels.find((m) => m.id === id)?.label || id}
+                        {id} ({chatModels.find((m) => m.id === id)?.provider === 'google' ? 'Google' : 'OpenAI'})
                       </option>
                     ))}
                   </select>
@@ -651,29 +661,39 @@ export default function AdminPage() {
                   <span className="text-xs font-bold text-[#c2410c]">👑 Pro 专享模型池（多选）：</span>
                   <span className="text-[10px] text-neutral-400">已选 {chatPool.proModels.length} 个</span>
                 </div>
-                <div className="space-y-1.5 max-h-40 overflow-y-auto pr-1">
+                <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
                   {chatModels.map((m) => (
-                    <label key={m.id} className="flex items-center gap-2 text-xs text-neutral-700 cursor-pointer hover:bg-orange-50/50 p-1 rounded-lg">
+                    <label key={m.id} className="flex items-start gap-2 text-xs text-neutral-700 cursor-pointer hover:bg-orange-50/40 p-1.5 rounded-xl border border-neutral-100 transition">
                       <input
                         type="checkbox"
                         checked={chatPool.proModels.includes(m.id)}
                         onChange={() => toggleModelInPool("chat", "pro", m.id)}
-                        className="rounded text-[#ff6b2c] focus:ring-[#ff6b2c]"
+                        className="rounded text-[#ff6b2c] focus:ring-[#ff6b2c] mt-0.5"
                       />
-                      <span className="truncate">{m.label}</span>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="font-mono font-bold text-neutral-900 text-[11px] bg-neutral-100 px-1.5 py-0.5 rounded">
+                            {m.id}
+                          </span>
+                          <span className={`text-[10px] px-1.5 rounded font-bold ${m.provider === 'google' ? 'bg-blue-50 text-blue-700 border border-blue-200' : 'bg-emerald-50 text-emerald-700 border border-emerald-200'}`}>
+                            {m.provider === 'google' ? 'Google' : 'OpenAI'}
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-neutral-500 truncate mt-0.5">{m.label}</p>
+                      </div>
                     </label>
                   ))}
                 </div>
                 <div className="pt-2 border-t border-neutral-100 flex items-center gap-1.5">
-                  <span className="text-[11px] font-semibold text-neutral-600 shrink-0">默认首选：</span>
+                  <span className="text-[11px] font-semibold text-neutral-600 shrink-0">默认首选原模型：</span>
                   <select
                     value={chatPool.defaultPro}
                     onChange={(e) => setChatPool((p) => ({ ...p, defaultPro: e.target.value }))}
-                    className="w-full rounded-lg border border-[#f0e6d4] bg-white px-2 py-1 text-xs"
+                    className="w-full rounded-lg border border-[#f0e6d4] bg-white px-2 py-1 text-xs font-mono"
                   >
                     {chatPool.proModels.map((id) => (
                       <option key={id} value={id}>
-                        {chatModels.find((m) => m.id === id)?.label || id}
+                        {id} ({chatModels.find((m) => m.id === id)?.provider === 'google' ? 'Google' : 'OpenAI'})
                       </option>
                     ))}
                   </select>
@@ -698,29 +718,39 @@ export default function AdminPage() {
                   <span className="text-xs font-bold text-emerald-800">🌱 免费画师池（多选）：</span>
                   <span className="text-[10px] text-neutral-400">已选 {imagePool.freeModels.length} 个</span>
                 </div>
-                <div className="space-y-1.5 max-h-40 overflow-y-auto pr-1">
+                <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
                   {imageModels.map((m) => (
-                    <label key={m.id} className="flex items-center gap-2 text-xs text-neutral-700 cursor-pointer hover:bg-neutral-50 p-1 rounded-lg">
+                    <label key={m.id} className="flex items-start gap-2 text-xs text-neutral-700 cursor-pointer hover:bg-neutral-50 p-1.5 rounded-xl border border-neutral-100 transition">
                       <input
                         type="checkbox"
                         checked={imagePool.freeModels.includes(m.id)}
                         onChange={() => toggleModelInPool("image", "free", m.id)}
-                        className="rounded text-[#ff6b2c] focus:ring-[#ff6b2c]"
+                        className="rounded text-[#ff6b2c] focus:ring-[#ff6b2c] mt-0.5"
                       />
-                      <span className="truncate">{m.label}</span>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="font-mono font-bold text-neutral-900 text-[11px] bg-neutral-100 px-1.5 py-0.5 rounded">
+                            {m.id}
+                          </span>
+                          <span className={`text-[10px] px-1.5 rounded font-bold ${m.provider === 'google' ? 'bg-blue-50 text-blue-700 border border-blue-200' : 'bg-emerald-50 text-emerald-700 border border-emerald-200'}`}>
+                            {m.provider === 'google' ? 'Google' : 'OpenAI'}
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-neutral-500 truncate mt-0.5">{m.label}</p>
+                      </div>
                     </label>
                   ))}
                 </div>
                 <div className="pt-2 border-t border-neutral-100 flex items-center gap-1.5">
-                  <span className="text-[11px] font-semibold text-neutral-600 shrink-0">默认首选：</span>
+                  <span className="text-[11px] font-semibold text-neutral-600 shrink-0">默认首选原模型：</span>
                   <select
                     value={imagePool.defaultFree}
                     onChange={(e) => setImagePool((p) => ({ ...p, defaultFree: e.target.value }))}
-                    className="w-full rounded-lg border border-[#f0e6d4] bg-white px-2 py-1 text-xs"
+                    className="w-full rounded-lg border border-[#f0e6d4] bg-white px-2 py-1 text-xs font-mono"
                   >
                     {imagePool.freeModels.map((id) => (
                       <option key={id} value={id}>
-                        {imageModels.find((m) => m.id === id)?.label || id}
+                        {id} ({imageModels.find((m) => m.id === id)?.provider === 'google' ? 'Google' : 'OpenAI'})
                       </option>
                     ))}
                   </select>
@@ -733,29 +763,39 @@ export default function AdminPage() {
                   <span className="text-xs font-bold text-[#c2410c]">👑 Pro 专享画师池（多选）：</span>
                   <span className="text-[10px] text-neutral-400">已选 {imagePool.proModels.length} 个</span>
                 </div>
-                <div className="space-y-1.5 max-h-40 overflow-y-auto pr-1">
+                <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
                   {imageModels.map((m) => (
-                    <label key={m.id} className="flex items-center gap-2 text-xs text-neutral-700 cursor-pointer hover:bg-orange-50/50 p-1 rounded-lg">
+                    <label key={m.id} className="flex items-start gap-2 text-xs text-neutral-700 cursor-pointer hover:bg-orange-50/40 p-1.5 rounded-xl border border-neutral-100 transition">
                       <input
                         type="checkbox"
                         checked={imagePool.proModels.includes(m.id)}
                         onChange={() => toggleModelInPool("image", "pro", m.id)}
-                        className="rounded text-[#ff6b2c] focus:ring-[#ff6b2c]"
+                        className="rounded text-[#ff6b2c] focus:ring-[#ff6b2c] mt-0.5"
                       />
-                      <span className="truncate">{m.label}</span>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="font-mono font-bold text-neutral-900 text-[11px] bg-neutral-100 px-1.5 py-0.5 rounded">
+                            {m.id}
+                          </span>
+                          <span className={`text-[10px] px-1.5 rounded font-bold ${m.provider === 'google' ? 'bg-blue-50 text-blue-700 border border-blue-200' : 'bg-emerald-50 text-emerald-700 border border-emerald-200'}`}>
+                            {m.provider === 'google' ? 'Google' : 'OpenAI'}
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-neutral-500 truncate mt-0.5">{m.label}</p>
+                      </div>
                     </label>
                   ))}
                 </div>
                 <div className="pt-2 border-t border-neutral-100 flex items-center gap-1.5">
-                  <span className="text-[11px] font-semibold text-neutral-600 shrink-0">默认首选：</span>
+                  <span className="text-[11px] font-semibold text-neutral-600 shrink-0">默认首选原模型：</span>
                   <select
                     value={imagePool.defaultPro}
                     onChange={(e) => setImagePool((p) => ({ ...p, defaultPro: e.target.value }))}
-                    className="w-full rounded-lg border border-[#f0e6d4] bg-white px-2 py-1 text-xs"
+                    className="w-full rounded-lg border border-[#f0e6d4] bg-white px-2 py-1 text-xs font-mono"
                   >
                     {imagePool.proModels.map((id) => (
                       <option key={id} value={id}>
-                        {imageModels.find((m) => m.id === id)?.label || id}
+                        {id} ({imageModels.find((m) => m.id === id)?.provider === 'google' ? 'Google' : 'OpenAI'})
                       </option>
                     ))}
                   </select>

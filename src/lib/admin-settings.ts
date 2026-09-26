@@ -35,15 +35,15 @@ export const DEFAULT_PRICING: PricingConfig = {
 };
 
 export const DEFAULT_CHAT_POOL: ModelPoolConfig = {
-  freeModels: ["gemini-3.8-flash-high", "gemini-3.1-pro-low", "glm-5.3", "grok-4.6"],
+  freeModels: ["gemini-3.8-flash-high", "gemini-3.7-flash-high", "gemini-3.1-pro-low"],
   proModels: ["gpt-6-astra", "gpt-5.6-sol", "gpt-5.5"],
   defaultFree: "gemini-3.8-flash-high",
   defaultPro: "gpt-6-astra",
 };
 
 export const DEFAULT_IMAGE_POOL: ModelPoolConfig = {
-  freeModels: ["gemini-3.1-flash-image"],
-  proModels: ["gpt-image-2.5", "gpt-image-2", "gpt-image-1.5"],
+  freeModels: ["gemini-3.1-flash-image", "imagen-3.0-generate-002"],
+  proModels: ["gpt-image-2.5", "gpt-image-2", "gpt-image-2.5-sunburst", "dall-e-3"],
   defaultFree: "gemini-3.1-flash-image",
   defaultPro: "gpt-image-2.5",
 };
