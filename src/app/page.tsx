@@ -278,6 +278,7 @@ export default function HomePage() {
   const [characterDescription, setCharacterDescription] = useState("");
   const [roleScope, setRoleScope] = useState<"default" | "solo" | "all">("default");
   const [artStyle, setArtStyle] = useState<"default" | "crayon" | "clay">("default");
+  const [creationSource, setCreationSource] = useState<"text" | "book" | "audio">("text");
   const [customPrompt, setCustomPrompt] = useState("");
   const [inspirationIndex, setInspirationIndex] = useState(0);
   const [isPromptFocused, setIsPromptFocused] = useState(false);
@@ -520,15 +521,21 @@ export default function HomePage() {
     }
   }
 
-  async function onComposeRhyme() {
-    if (!aiTopic.trim() || isComposing) return;
+  const isSingleIdeaTopic = useMemo(() => {
+    const trimmed = lyrics.trim();
+    return trimmed.length > 0 && trimmed.length <= 20 && !trimmed.includes("\n");
+  }, [lyrics]);
+
+  async function onComposeRhyme(customTopic?: string) {
+    const targetTopic = (customTopic || aiTopic).trim();
+    if (!targetTopic || isComposing) return;
     setIsComposing(true);
     setError("");
     try {
       const res = await fetch("/api/compose-rhyme", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ topic: aiTopic.trim() }),
+        body: JSON.stringify({ topic: targetTopic }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "童谣创作失败");
@@ -537,7 +544,7 @@ export default function HomePage() {
       setAudioId(null);
       setShowAiComposer(false);
       setAiTopic("");
-      setUploadTip(`✨ AI 已为宝贝创作出童谣《${data.title || aiTopic}》，点下方「生成歌绘本」即可出画～`);
+      setUploadTip(`✨ AI 已根据灵感为宝贝创作出童谣《${data.title || targetTopic}》，点下方「生成歌绘本」即可出画～`);
     } catch (e) {
       setError(e instanceof Error ? e.message : "创作童谣出错了");
     } finally {
@@ -1314,91 +1321,183 @@ export default function HomePage() {
             onChange={(e) => setSongTitle(e.target.value)}
           />
 
+          {/* 歌词与故事来源：三选一轻量分流胶囊（彻底告别被巨型上传框劝退） */}
           <div className="mt-5">
-            <label className="block text-sm font-semibold text-neutral-800">
-              上传儿歌、绘本文件或照片
-            </label>
-            <label
-              className={`mt-2 flex cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed px-4 py-7 text-center transition ${
-                dragOver
-                  ? "border-[#ff6b2c] bg-[#fff4ee]"
-                  : isUploading
-                  ? "border-[#ff6b2c]/60 bg-[#fff4ee]/40 animate-pulse"
-                  : "border-[#f0e6d4] bg-[#fffdf8] hover:border-[#1db8a6]/70 hover:bg-[#f0faf8]"
-              } ${jobBusy && !isUploading ? "pointer-events-none opacity-60" : ""}`}
-              onDragEnter={(e) => {
-                e.preventDefault();
-                if (!isUploading && !jobBusy) setDragOver(true);
-              }}
-              onDragOver={(e) => {
-                e.preventDefault();
-                if (!isUploading && !jobBusy) setDragOver(true);
-              }}
-              onDragLeave={() => setDragOver(false)}
-              onDrop={(e) => {
-                e.preventDefault();
-                setDragOver(false);
-                if (isUploading || jobBusy) return;
-                void onPickFiles(e.dataTransfer.files);
-              }}
-            >
-              {isUploading ? (
-                <div className="flex flex-col items-center py-1">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[#ff6b2c]/10 text-[#ff6b2c]">
+            <div className="flex items-center justify-between mb-2">
+              <label className="text-sm font-semibold text-neutral-800">
+                歌词与故事来源
+              </label>
+              <span className="text-[11px] text-neutral-400">3 选 1 即可生成绘本</span>
+            </div>
+
+            <div className="grid grid-cols-3 gap-1.5 rounded-2xl bg-[#f5efe6] p-1 text-xs font-semibold text-neutral-600 shadow-inner">
+              <button
+                type="button"
+                onClick={() => setCreationSource("text")}
+                className={`flex items-center justify-center gap-1 rounded-xl py-2 transition cursor-pointer active:scale-95 ${
+                  creationSource === "text"
+                    ? "bg-white text-[#c2410c] shadow-xs font-bold"
+                    : "hover:text-neutral-800"
+                }`}
+              >
+                <span>✍️</span>
+                <span>贴歌词/写灵感</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setCreationSource("book")}
+                className={`flex items-center justify-center gap-1 rounded-xl py-2 transition cursor-pointer active:scale-95 ${
+                  creationSource === "book"
+                    ? "bg-white text-[#c2410c] shadow-xs font-bold"
+                    : "hover:text-neutral-800"
+                }`}
+              >
+                <span>📸</span>
+                <span>拍绘本/传PDF</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setCreationSource("audio")}
+                className={`flex items-center justify-center gap-1 rounded-xl py-2 transition cursor-pointer active:scale-95 ${
+                  creationSource === "audio"
+                    ? "bg-white text-[#c2410c] shadow-xs font-bold"
+                    : "hover:text-neutral-800"
+                }`}
+              >
+                <span>🎵</span>
+                <span>传儿歌音频</span>
+              </button>
+            </div>
+
+            {/* 分支 1：拍绘本 / 传 PDF 模式下的专属上传框 */}
+            {creationSource === "book" ? (
+              <label
+                className={`mt-3 flex cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed px-4 py-6 text-center transition ${
+                  dragOver
+                    ? "border-[#ff6b2c] bg-[#fff4ee]"
+                    : isUploading
+                    ? "border-[#ff6b2c]/60 bg-[#fff4ee]/40 animate-pulse"
+                    : "border-[#f0e6d4] bg-[#fffdf8] hover:border-[#1db8a6]/70 hover:bg-[#f0faf8]"
+                } ${jobBusy && !isUploading ? "pointer-events-none opacity-60" : ""}`}
+                onDragEnter={(e) => {
+                  e.preventDefault();
+                  if (!isUploading && !jobBusy) setDragOver(true);
+                }}
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  if (!isUploading && !jobBusy) setDragOver(true);
+                }}
+                onDragLeave={() => setDragOver(false)}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  setDragOver(false);
+                  if (isUploading || jobBusy) return;
+                  void onPickFiles(e.dataTransfer.files);
+                }}
+              >
+                {isUploading ? (
+                  <div className="flex flex-col items-center py-1">
                     <span className="inline-block h-6 w-6 animate-spin rounded-full border-2 border-[#ff6b2c] border-t-transparent" />
-                  </div>
-                  <span className="mt-3 text-sm font-semibold text-[#c2410c]">
-                    {uploadProgressText || "正在解析文件，请稍候…"}
-                  </span>
-                  {fileName ? (
-                    <span className="mt-1 text-xs text-neutral-500 truncate max-w-[260px]">
-                      {fileName}
+                    <span className="mt-2 text-xs font-semibold text-[#c2410c]">
+                      {uploadProgressText || "正在翻阅绘本识别歌词与角色…"}
                     </span>
-                  ) : null}
-                </div>
-              ) : (
-                <>
-                  <MusicBookIcons />
-                  <span className="mt-3 text-sm font-medium text-neutral-700">
-                    把儿歌、绘本文件或照片拖进来，或点击选择
-                  </span>
-
-                  {/* 清晰分类的格式卡片 */}
-                  <div className="mt-3 flex flex-wrap items-center justify-center gap-2 text-[11px]">
-                    <div className="flex items-center gap-1 rounded-lg border border-[#f0e6d4] bg-white px-2 py-1 text-neutral-600 shadow-2xs">
-                      <span>🎵 音频：</span>
-                      <span className="font-semibold text-neutral-700">MP3 · WAV · M4A · AAC · FLAC · OGG</span>
-                    </div>
-                    <div className="flex items-center gap-1 rounded-lg border border-[#f0e6d4] bg-white px-2 py-1 text-neutral-600 shadow-2xs">
-                      <span>📖 绘本：</span>
-                      <span className="font-semibold text-neutral-700">PDF 文件 · 拍照/截图 (JPG · PNG · WebP 可多选)</span>
-                    </div>
                   </div>
-
-                  {fileName ? (
-                    <span className="mt-3 inline-flex max-w-full items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-700 shadow-sm">
-                      <span aria-hidden="true">✓</span>
-                      <span className="truncate">已就绪：{fileName}</span>
+                ) : (
+                  <>
+                    <span className="text-3xl" aria-hidden>📖</span>
+                    <span className="mt-2 text-xs font-bold text-neutral-700">
+                      把纸质绘本拍照、插画截图 (JPG/PNG 可多选) 或 PDF 拖进来
                     </span>
-                  ) : null}
-                </>
-              )}
-              <input
-                type="file"
-                multiple
-                accept=".mp3,.wav,.m4a,.ogg,.flac,.aac,.pdf,.jpg,.jpeg,.png,.webp"
-                className="hidden"
-                disabled={jobBusy}
-                onChange={(e) => void onPickFiles(e.target.files)}
-              />
-            </label>
+                    <span className="mt-1 text-[11px] text-neutral-400">
+                      ✨ AI 将精准定位原书歌词与定妆主角，生成同款分镜合页
+                    </span>
+                    {fileName ? (
+                      <span className="mt-2 inline-flex items-center gap-1 rounded-full border border-emerald-500/30 bg-emerald-50 px-2.5 py-0.5 text-[11px] font-medium text-emerald-700">
+                        <span>✓</span>
+                        <span className="truncate max-w-[200px]">{fileName}</span>
+                      </span>
+                    ) : null}
+                  </>
+                )}
+                <input
+                  type="file"
+                  multiple
+                  accept=".pdf,.jpg,.jpeg,.png,.webp"
+                  className="hidden"
+                  disabled={jobBusy}
+                  onChange={(e) => void onPickFiles(e.target.files)}
+                />
+              </label>
+            ) : null}
+
+            {/* 分支 2：传儿歌音频模式下的专属上传框 */}
+            {creationSource === "audio" ? (
+              <label
+                className={`mt-3 flex cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed px-4 py-6 text-center transition ${
+                  dragOver
+                    ? "border-[#ff6b2c] bg-[#fff4ee]"
+                    : isUploading
+                    ? "border-[#ff6b2c]/60 bg-[#fff4ee]/40 animate-pulse"
+                    : "border-[#f0e6d4] bg-[#fffdf8] hover:border-[#1db8a6]/70 hover:bg-[#f0faf8]"
+                } ${jobBusy && !isUploading ? "pointer-events-none opacity-60" : ""}`}
+                onDragEnter={(e) => {
+                  e.preventDefault();
+                  if (!isUploading && !jobBusy) setDragOver(true);
+                }}
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  if (!isUploading && !jobBusy) setDragOver(true);
+                }}
+                onDragLeave={() => setDragOver(false)}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  setDragOver(false);
+                  if (isUploading || jobBusy) return;
+                  void onPickFiles(e.dataTransfer.files);
+                }}
+              >
+                {isUploading ? (
+                  <div className="flex flex-col items-center py-1">
+                    <span className="inline-block h-6 w-6 animate-spin rounded-full border-2 border-[#ff6b2c] border-t-transparent" />
+                    <span className="mt-2 text-xs font-semibold text-[#c2410c]">
+                      {uploadProgressText || "正在智能听歌转写歌词…"}
+                    </span>
+                  </div>
+                ) : (
+                  <>
+                    <span className="text-3xl" aria-hidden>🎵</span>
+                    <span className="mt-2 text-xs font-bold text-neutral-700">
+                      把儿歌音频 (MP3 · WAV · M4A · AAC · FLAC) 拖进来
+                    </span>
+                    <span className="mt-1 text-[11px] text-neutral-400">
+                      ✨ 自动转写歌词，并在 A4 挂画右下角生成微信扫码点读伴唱码
+                    </span>
+                    {fileName ? (
+                      <span className="mt-2 inline-flex items-center gap-1 rounded-full border border-emerald-500/30 bg-emerald-50 px-2.5 py-0.5 text-[11px] font-medium text-emerald-700">
+                        <span>✓</span>
+                        <span className="truncate max-w-[200px]">{fileName}</span>
+                      </span>
+                    ) : null}
+                  </>
+                )}
+                <input
+                  type="file"
+                  accept="audio/*,.mp3,.wav,.m4a,.ogg,.flac,.aac"
+                  className="hidden"
+                  disabled={jobBusy}
+                  onChange={(e) => void onPickFiles(e.target.files)}
+                />
+              </label>
+            ) : null}
+
             {uploadTip ? (
               <div className="mt-2.5 flex items-start gap-2 rounded-xl border border-emerald-200/90 bg-emerald-50/80 p-2.5 text-xs text-emerald-800 shadow-sm">
                 <span className="text-sm shrink-0 leading-none mt-0.5">✨</span>
                 <span className="leading-relaxed font-medium">{uploadTip}</span>
               </div>
             ) : null}
-            
           </div>
 
           <div className="mt-5 flex items-center justify-between">
@@ -1488,11 +1587,38 @@ export default function HomePage() {
           </div>
           <textarea
             className="mt-2 min-h-[140px] w-full resize-y rounded-2xl border border-[#f0e6d4] bg-[#fffdf8] px-3 py-3 text-base sm:text-sm leading-relaxed outline-none ring-[#ff6b2c]/40 focus:ring-2 disabled:opacity-60"
-            placeholder="把歌词粘贴在这里，或上传文件自动整理…"
+            placeholder={
+              creationSource === "text"
+                ? "直接粘贴儿歌歌词，或写一句话灵感（如：宝宝不肯睡觉 / 快乐小恐龙）…"
+                : creationSource === "book"
+                ? "绘本识别完成后歌词将自动填入此处，您也可随时微调编辑…"
+                : "音频听写完成后歌词将自动填入此处，您也可随时微调编辑…"
+            }
             value={lyrics}
             disabled={jobBusy}
             onChange={(e) => setLyrics(e.target.value)}
           />
+
+          {/* 智能灵感主题感知扩写条：当用户只输入了简短灵感词，一键直达完整儿歌 */}
+          {isSingleIdeaTopic && !isComposing ? (
+            <div className="mt-2 flex items-center justify-between gap-2 rounded-xl border border-orange-200/90 bg-gradient-to-r from-orange-50 to-[#fff8f2] p-2.5 shadow-2xs animate-in fade-in slide-in-from-top-1 duration-200">
+              <div className="flex items-center gap-1.5 min-w-0">
+                <span className="text-sm shrink-0">💡</span>
+                <span className="text-xs text-neutral-700 truncate font-medium">
+                  想以「<strong>{lyrics.trim()}</strong>」做绘本？
+                </span>
+              </div>
+              <button
+                type="button"
+                disabled={jobBusy || isComposing}
+                onClick={() => void onComposeRhyme(lyrics.trim())}
+                className="inline-flex items-center gap-1 rounded-lg bg-[#ff6b2c] hover:bg-[#ef5a1a] px-3 py-1 text-xs font-bold text-white shadow-2xs transition active:scale-95 shrink-0 cursor-pointer"
+              >
+                <span>🪄 一键写成儿歌</span>
+                <span aria-hidden>➔</span>
+              </button>
+            </div>
+          ) : null}
           {needsVision && (pendingUploadId || pendingPdfBase64) ? (
             <p className="mt-2 text-xs leading-relaxed text-neutral-500">
               已记住这份绘本。生成时会看最后一页歌词和角色页，再合成一张歌绘～
@@ -1560,9 +1686,9 @@ export default function HomePage() {
               </div>
             </div>
 
-            {/* 补充愿望：支持 80 字丰富描述，带动态灵感轮播与实时字数计数 */}
+            {/* 补充愿望：支持 80 字丰富描述，带水平流动跑马灯与实时字数计数 */}
             <div className="mt-3">
-              <div className="relative">
+              <div className="relative overflow-hidden rounded-xl">
                 <input
                   type="text"
                   maxLength={80}
@@ -1574,10 +1700,20 @@ export default function HomePage() {
                   placeholder={
                     isPromptFocused
                       ? "想让画面里发生什么？可自由描述喜欢的场景与动作…"
-                      : `💡 灵感：${PROMPT_INSPIRATIONS[inspirationIndex]}`
+                      : ""
                   }
                   className="w-full rounded-xl border border-[#f0e6d4] bg-white pl-3 pr-14 py-2 text-base sm:text-xs outline-none ring-[#ff6b2c]/40 focus:ring-1 text-neutral-700 placeholder:text-neutral-400 transition-all duration-300"
                 />
+
+                {/* 仿真跑马灯：仅在未输入且未聚焦时展现，从右向左平滑连续流动，彻底杜绝手机端截断 */}
+                {!customPrompt && !isPromptFocused ? (
+                  <div className="absolute inset-y-0 left-3 right-14 overflow-hidden pointer-events-none flex items-center">
+                    <span className="animate-marquee-left text-neutral-400 text-xs font-normal">
+                      💡 画面灵感漫步：在向日葵花田野餐吃西瓜 🍉 · 乘着热气球穿过彩虹捉迷藏 🎈 · 温暖小木屋前小动物们开心跳舞 🐰 · 阳光麦田里追逐蝴蝶 🦋
+                    </span>
+                  </div>
+                ) : null}
+
                 <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] font-medium text-neutral-400 pointer-events-none">
                   {customPrompt.length}/80
                 </span>
