@@ -296,6 +296,7 @@ export default function HomePage() {
   const [isSampleMode, setIsSampleMode] = useState<boolean>(false);
   const [previewImageModal, setPreviewImageModal] = useState<string | null>(null);
   const [isPlayingAudio, setIsPlayingAudio] = useState(false);
+  const [isAudioLoading, setIsAudioLoading] = useState(false);
   const audioPlayerRef = useRef<HTMLAudioElement | null>(null);
   const touchStartXRef = useRef<number | null>(null);
 
@@ -311,39 +312,89 @@ export default function HomePage() {
     applySampleBook(SAMPLE_BOOKS[nextIdx]);
   }, [sampleCarouselIndex]);
 
-  // Toggle sample native vocal audio playback
-  const togglePlayAudio = useCallback(() => {
+  // 静默预加载当前绘本音频（进入展厅或切歌时提前缓冲，实现秒点秒响）
+  useEffect(() => {
     const currentSample = SAMPLE_BOOKS[sampleCarouselIndex];
     if (!currentSample?.sampleAudio) return;
 
     if (!audioPlayerRef.current) {
-      const audio = new Audio(currentSample.sampleAudio);
-      audio.onended = () => setIsPlayingAudio(false);
-      audio.onerror = () => setIsPlayingAudio(false);
+      const audio = new Audio();
+      audio.preload = "auto";
       audioPlayerRef.current = audio;
     }
 
-    if (isPlayingAudio) {
-      audioPlayerRef.current.pause();
-      setIsPlayingAudio(false);
-    } else {
-      if (audioPlayerRef.current.src !== window.location.origin + currentSample.sampleAudio) {
-        audioPlayerRef.current.src = currentSample.sampleAudio;
+    const player = audioPlayerRef.current;
+    const targetSrc = window.location.origin + currentSample.sampleAudio;
+    if (player.src !== targetSrc) {
+      if (isPlayingAudio) {
+        player.pause();
+        setIsPlayingAudio(false);
       }
-      audioPlayerRef.current.play().then(
-        () => setIsPlayingAudio(true),
-        () => setIsPlayingAudio(false)
-      );
+      setIsAudioLoading(false);
+      player.src = currentSample.sampleAudio;
+      player.load();
     }
   }, [sampleCarouselIndex, isPlayingAudio]);
 
-  // Stop audio on switching songs
+  // 绑定原生音频事件，精确掌控播放与缓冲状态
   useEffect(() => {
-    if (audioPlayerRef.current && isPlayingAudio) {
-      audioPlayerRef.current.pause();
+    const player = audioPlayerRef.current;
+    if (!player) return;
+
+    const onPlaying = () => {
+      setIsAudioLoading(false);
+      setIsPlayingAudio(true);
+    };
+    const onWaiting = () => {
+      if (!player.paused) setIsAudioLoading(true);
+    };
+    const onCanPlay = () => {
+      setIsAudioLoading(false);
+    };
+    const onEnded = () => {
       setIsPlayingAudio(false);
+      setIsAudioLoading(false);
+    };
+    const onError = () => {
+      setIsPlayingAudio(false);
+      setIsAudioLoading(false);
+    };
+
+    player.addEventListener("playing", onPlaying);
+    player.addEventListener("waiting", onWaiting);
+    player.addEventListener("canplay", onCanPlay);
+    player.addEventListener("ended", onEnded);
+    player.addEventListener("error", onError);
+
+    return () => {
+      player.removeEventListener("playing", onPlaying);
+      player.removeEventListener("waiting", onWaiting);
+      player.removeEventListener("canplay", onCanPlay);
+      player.removeEventListener("ended", onEnded);
+      player.removeEventListener("error", onError);
+    };
+  }, []);
+
+  // 点击听儿歌伴唱
+  const togglePlayAudio = useCallback(() => {
+    const currentSample = SAMPLE_BOOKS[sampleCarouselIndex];
+    if (!currentSample?.sampleAudio) return;
+
+    const player = audioPlayerRef.current;
+    if (!player) return;
+
+    if (isPlayingAudio) {
+      player.pause();
+      setIsPlayingAudio(false);
+      setIsAudioLoading(false);
+    } else {
+      setIsAudioLoading(true);
+      player.play().catch(() => {
+        setIsAudioLoading(false);
+        setIsPlayingAudio(false);
+      });
     }
-  }, [sampleCarouselIndex]);
+  }, [sampleCarouselIndex, isPlayingAudio]);
 
   const [quota, setQuota] = useState<QuotaStatus | null>(null);
   const [showQuotaModal, setShowQuotaModal] = useState(false);
@@ -2112,7 +2163,7 @@ export default function HomePage() {
                       </div>
 
                       <div className="flex items-center gap-1.5 shrink-0">
-                        {/* 原声儿歌伴唱喇叭按钮 */}
+                        {/* 原声儿歌伴唱喇叭按钮（含预加载、即时缓冲动效与播放控制） */}
                         {SAMPLE_BOOKS[sampleCarouselIndex]?.sampleAudio ? (
                           <button
                             type="button"
@@ -2123,12 +2174,29 @@ export default function HomePage() {
                             className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-bold transition shadow-2xs active:scale-95 cursor-pointer ${
                               isPlayingAudio
                                 ? "bg-orange-500 text-white shadow-orange-500/25 ring-2 ring-orange-300"
+                                : isAudioLoading
+                                ? "bg-orange-50 border border-orange-300 text-orange-700 animate-pulse"
                                 : "bg-white border border-[#f0e6d4] text-neutral-700 hover:border-orange-300 hover:bg-[#fff8f3] hover:text-[#c2410c]"
                             }`}
-                            title={isPlayingAudio ? "点击暂停原声伴唱" : "点击播放高清原声伴唱"}
+                            title={
+                              isAudioLoading
+                                ? "正在缓冲高清原声伴奏…"
+                                : isPlayingAudio
+                                ? "点击暂停原声伴唱"
+                                : "点击播放高清原声伴唱"
+                            }
                           >
-                            <SpeakerIcon className="w-3.5 h-3.5" playing={isPlayingAudio} />
-                            <span>{isPlayingAudio ? "播放中" : "听儿歌"}</span>
+                            {isAudioLoading ? (
+                              <>
+                                <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-orange-600 border-t-transparent" />
+                                <span>缓冲中…</span>
+                              </>
+                            ) : (
+                              <>
+                                <SpeakerIcon className="w-3.5 h-3.5" playing={isPlayingAudio} />
+                                <span>{isPlayingAudio ? "播放中" : "听儿歌"}</span>
+                              </>
+                            )}
                           </button>
                         ) : null}
 
